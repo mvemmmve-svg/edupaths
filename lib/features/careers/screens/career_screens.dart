@@ -201,7 +201,7 @@ class _CareerDetailState extends ConsumerState<CareerDetailScreen>
                           fontSize: 14, fontWeight: FontWeight.w800)),
                         SizedBox(width: 6),
                         Icon(Icons.lock_rounded, size: 14,
-                          color: isPremium ? Colors.transparent : AppColors.textLight),
+                           color: AppColors.textLight),
                       ]),
                       Text('Uni vs Apprenticeship vs Bootcamp',
                         style: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: AppColors.textMid)),
@@ -383,7 +383,7 @@ class CourseDetailScreen extends ConsumerWidget {
                               itemType: 'course',
                               itemId: courseId,
                               title: course?.title ?? '',
-                              subtitle: course?.institutionName);
+                              subtitle: course?.institution?.name);
                           }
                           r.invalidate(savedItemsProvider);
                           (ctx as Element).markNeedsBuild();

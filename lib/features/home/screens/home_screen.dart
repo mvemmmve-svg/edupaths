@@ -170,7 +170,21 @@ class HomeScreen extends ConsumerWidget {
                   // Show generating state if user is onboarded
                   final user = ref.watch(appUserProvider).valueOrNull;
                   if (user?.onboardingComplete == true) {
-                    return _MatchesGeneratingWidget();
+                    return Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: gradientBox(radius: 20),
+                      child: Column(children: [
+                        const CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                        const SizedBox(height: 16),
+                        const Text('Finding your perfect careers...',
+                          style: TextStyle(fontFamily: 'Nunito', fontSize: 16,
+                            fontWeight: FontWeight.w800, color: Colors.white),
+                          textAlign: TextAlign.center),
+                        const SizedBox(height: 8),
+                        const Text('Pull down to refresh',
+                          style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
+                            color: Colors.white70)),
+                      ]));
                   }
                   return const SizedBox();
                 }

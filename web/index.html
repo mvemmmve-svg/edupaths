@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <base href="/">
+  <base href="$FLUTTER_BASE_HREF">
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="EduPaths - Discover your future career">
@@ -14,42 +14,41 @@
   <link rel="manifest" href="manifest.json">
   <style>
     body{margin:0;background:#f8f9ff;}
-    #loading{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Arial,sans-serif;color:#2E3B7C;}
-    .spinner{width:48px;height:48px;border:4px solid #e0e4ff;border-top-color:#2E3B7C;border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:16px;}
+    #loading{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Arial,sans-serif;color:#2E3B7C;background:#f8f9ff;}
+    .sp{width:48px;height:48px;border:4px solid #e0e4ff;border-top-color:#2E3B7C;border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:20px;}
     @keyframes spin{to{transform:rotate(360deg);}}
   </style>
 </head>
 <body>
-  <div id="loading"><div class="spinner"></div><div style="font-weight:700;font-size:18px">EduPaths</div><div style="font-size:13px;margin-top:8px;color:#666">Loading...</div></div>
+  <div id="loading">
+    <div class="sp"></div>
+    <div style="font-weight:900;font-size:22px">EduPaths</div>
+    <div style="font-size:13px;margin-top:8px;color:#888">Loading your future...</div>
+  </div>
   <script>
-    var serviceWorkerVersion = null;
-    function hideLoading(){document.getElementById('loading').style.display='none';}
-    // Try new Flutter loader (3.22+)
-    function tryNew(){
-      var s=document.createElement('script');s.src='flutter_bootstrap.js';s.async=true;
-      s.onload=hideLoading;
-      s.onerror=tryOld;
-      document.head.appendChild(s);
-    }
-    // Fall back to old Flutter loader
-    function tryOld(){
-      var s=document.createElement('script');s.src='flutter.js';s.defer=true;
-      s.onload=function(){
+    var serviceWorkerVersion = {{flutter_service_worker_version}};
+    function hide(){var l=document.getElementById('loading');if(l)l.style.display='none';}
+    var s=document.createElement('script');
+    s.src='flutter_bootstrap.js';
+    s.async=true;
+    s.onload=hide;
+    s.onerror=function(){
+      var s2=document.createElement('script');
+      s2.src='flutter.js';
+      s2.defer=true;
+      s2.onload=function(){
         window.addEventListener('load',function(){
           _flutter.loader.load({
-            serviceWorkerSettings:{serviceWorkerVersion:null},
-            onEntrypointLoaded:function(init){
-              init.initializeEngine().then(function(r){hideLoading();r.runApp();});
+            serviceWorkerSettings:{serviceWorkerVersion:serviceWorkerVersion},
+            onEntrypointLoaded:function(e){
+              e.initializeEngine().then(function(r){hide();r.runApp();});
             }
           });
         });
       };
-      s.onerror=function(){document.getElementById('loading').innerHTML='<p>Failed to load. Please refresh.</p><button onclick="location.reload()">Refresh</button>';};
-      document.head.appendChild(s);
-    }
-    tryNew();
-    // Auto-reload if stuck after 20 seconds
-    setTimeout(function(){if(document.getElementById('loading').style.display!=='none'){location.reload();}},20000);
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(s);
   </script>
 </body>
 </html>
