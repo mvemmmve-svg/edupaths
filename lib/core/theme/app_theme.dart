@@ -1,6 +1,5 @@
 // lib/core/theme/app_theme.dart
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
   static const primary       = Color(0xFF5B4FE9);
@@ -35,12 +34,16 @@ BoxDecoration gradientBox({double radius = 16, List<Color>? colors}) =>
       borderRadius: BorderRadius.circular(radius),
     );
 
+// Use system font stack - no google_fonts dependency needed
+const _fontFamily = 'Nunito';
+
 TextStyle _n(double size, FontWeight w, Color c) =>
-    GoogleFonts.nunito(fontSize: size, fontWeight: w, color: c);
+    TextStyle(fontFamily: _fontFamily, fontSize: size, fontWeight: w, color: c);
 
 class AppTheme {
   static ThemeData get light => ThemeData(
     useMaterial3: true,
+    fontFamily: _fontFamily,
     scaffoldBackgroundColor: AppColors.bgPage,
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primary,
@@ -64,7 +67,7 @@ class AppTheme {
         foregroundColor: Colors.white,
         minimumSize: const Size(double.infinity, 54),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 16, fontWeight: FontWeight.w700),
         elevation: 0,
       ),
     ),
@@ -74,7 +77,7 @@ class AppTheme {
         side: const BorderSide(color: AppColors.primary, width: 2),
         minimumSize: const Size(double.infinity, 54),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 16, fontWeight: FontWeight.w700),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -90,20 +93,21 @@ class AppTheme {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: AppColors.primary, width: 2)),
-      hintStyle: GoogleFonts.nunito(color: AppColors.textLight, fontSize: 14),
+      hintStyle: const TextStyle(fontFamily: _fontFamily, color: AppColors.textLight, fontSize: 14),
     ),
-    appBarTheme: AppBarTheme(
+    appBarTheme: const AppBarTheme(
       backgroundColor: AppColors.bgPage,
       elevation: 0,
-      titleTextStyle: GoogleFonts.nunito(
-        fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textDark),
-      iconTheme: const IconThemeData(color: AppColors.textDark),
+      titleTextStyle: TextStyle(
+        fontFamily: _fontFamily, fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textDark),
+      iconTheme: IconThemeData(color: AppColors.textDark),
     ),
   );
 
   static ThemeData get dark => ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
+    fontFamily: _fontFamily,
     scaffoldBackgroundColor: const Color(0xFF0F0D1E),
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primary,
@@ -130,12 +134,12 @@ class AppTheme {
         elevation: 0,
       ),
     ),
-    appBarTheme: AppBarTheme(
-      backgroundColor: const Color(0xFF0F0D1E),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Color(0xFF0F0D1E),
       elevation: 0,
-      titleTextStyle: GoogleFonts.nunito(
-        fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white),
-      iconTheme: const IconThemeData(color: Colors.white),
+      titleTextStyle: TextStyle(
+        fontFamily: _fontFamily, fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white),
+      iconTheme: IconThemeData(color: Colors.white),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -150,7 +154,7 @@ class AppTheme {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: AppColors.primary, width: 2)),
-      hintStyle: GoogleFonts.nunito(color: const Color(0xFF7B6EA0), fontSize: 14),
+      hintStyle: const TextStyle(fontFamily: _fontFamily, color: Color(0xFF7B6EA0), fontSize: 14),
     ),
   );
 }
