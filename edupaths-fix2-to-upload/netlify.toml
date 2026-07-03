@@ -1,0 +1,90 @@
+# EduPaths — Flutter web on Netlify (corrected)
+#
+# Corrections vs. Sonnet's draft:
+#  1. Flutter version pinned via FLUTTER_VERSION (was: unpinned "stable", which
+#     drifts between builds).
+#  2. FLUTTER_WEB_CANVASKIT_URL removed — as a shell env var it has no effect
+#     (it would need to be a --dart-define), and pinning a CanvasKit hash while
+#     cloning "latest stable" guarantees an eventual engine/CanvasKit mismatch.
+#     Modern Flutter ships CanvasKit inside build/web/canvaskit anyway.
+#  3. Supabase config passed as --dart-define (Flutter has no VITE_ mechanism;
+#     spec Phase 0 step 7 / H5). Set SUPABASE_URL and SUPABASE_ANON_KEY in the
+#     Netlify dashboard. The anon key is public by design — the EduBot
+#     Anthropic key must NEVER be a dart-define (QA row 14).
+#  4. Cache headers fixed: Flutter web output (main.dart.js,
+#     flutter_bootstrap.js, assets/*) is NOT content-hashed between deploys.
+#     "immutable, max-age=31536000" on those paths strands users on stale
+#     bundles after every deploy. Use must-revalidate; Netlify's ETags make
+#     revalidation cheap.
+#  5. Functions directory declared + function paths excluded above the SPA
+#     catch-all (spec F1 note), ready for the EduBot proxy (Phase 5, B1).
+
+[build]
+  command = """
+    if [ ! -d flutter ]; then git clone https://github.com/flutter/flutter.git --depth 1 -b $FLUTTER_VERSION; fi && \
+    flutter/bin/flutter --version && \
+    flutter/bin/flutter pub get && \
+    flutter/bin/flutter build web --release \
+      --dart-define=SUPABASE_URL=$SUPABASE_URL \
+      --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+  """
+  publish = "build/web"
+  functions = "netlify/functions"
+
+[build.environment]
+  # Pin to the exact version you develop with (`flutter --version`), e.g. "3.32.5".
+  # Any published Flutter tag or branch name works here.
+  # Pinned to the exact version this project was created with (.metadata
+  # revision dec2ee5c... = Flutter 3.24.5). Never build against a moving target.
+  FLUTTER_VERSION = "3.24.5"
+
+# ---------- Headers ----------
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# Flutter's JS entrypoints and assets are re-generated under the SAME filenames
+# every deploy — they must revalidate, never be immutable.
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# CanvasKit binaries ARE tied to the engine build and only change when the
+# Flutter version changes; a day of caching is a safe middle ground.
+[[headers]]
+  for = "/canvaskit/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+# ---------- Redirects (order matters: functions before the SPA catch-all) ----------
+
+[[redirects]]
+  from = "/.netlify/functions/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# Friendly API alias for the EduBot proxy (Phase 5)
+[[redirects]]
+  from = "/api/edubot"
+  to = "/.netlify/functions/edubot"
+  status = 200
+
+# F1 — SPA rewrite: every unknown path serves the Flutter shell
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
