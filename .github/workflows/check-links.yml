@@ -1,0 +1,20 @@
+name: Check External Links (R3)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly on Monday at 09:00 UTC — external links rot independently of code
+    - cron: '0 9 * * 1'
+
+jobs:
+  check-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check all external URLs
+        run: node scripts/check-links.mjs

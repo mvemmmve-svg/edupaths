@@ -1,16 +1,39 @@
 // lib/core/theme/app_theme.dart
+//
+// CORRECTIONS vs. the previous draft:
+//  1. The spec's core Phase-4 rule was missing: each pathway type owns one
+//     semantic route color used everywhere (A1). The old file only had
+//     decorative accentBlue/accentGreen. Added uniRoute/appRoute/waypoint as
+//     semantic tokens + routeColorFor(). Per the spec's own note, the hex
+//     values are mapped onto the app's existing purple brand rather than
+//     replacing it — the semantic rule matters more than the exact hexes.
+//  2. 'Nunito' was referenced but never bundled (no google_fonts, no fonts:
+//     in pubspec) so everything silently rendered Roboto. pubspec.yaml now
+//     bundles Nunito + IBM Plex Mono; this file adds AppText.data for the
+//     Plex Mono data chips (spec A1/A4: entry grades, fees, pay, duration).
+//  3. Kept gradientBox but note spec A2: "no gradients competing with the
+//     pathway line" — use it sparingly or retire it during Phase 4.
+
 import 'package:flutter/material.dart';
 
 class AppColors {
+  // Existing brand (kept)
   static const primary       = Color(0xFF5B4FE9);
   static const primaryLight  = Color(0xFF7B72F0);
   static const primaryDark   = Color(0xFF3D33C7);
   static const primaryPale   = Color(0xFFEEECFF);
-  static const accentGreen   = Color(0xFF22C55E);
-  static const accentOrange  = Color(0xFFFF8C42);
+
+  // A1 — SEMANTIC route tokens. Never use these decoratively; blue always
+  // means university, green always means apprenticeship, on every screen.
+  static const uniRoute  = Color(0xFF2456E6); // university route blue
+  static const appRoute  = Color(0xFF0E9B76); // apprenticeship route green
+  static const waypoint  = Color(0xFFF2B33D); // CTAs + progress nodes ONLY —
+                                              // never body text on light bg (fails AA)
+
+  // Decorative accents (existing — do not reuse for pathway identity)
   static const accentPink    = Color(0xFFEC4899);
-  static const accentBlue    = Color(0xFF3B82F6);
-  static const accentYellow  = Color(0xFFF59E0B);
+  static const accentOrange  = Color(0xFFFF8C42);
+
   static const bgPage        = Color(0xFFF7F6FF);
   static const bgCard        = Color(0xFFFFFFFF);
   static const bgSurface     = Color(0xFFEEECFF);
@@ -24,6 +47,38 @@ class AppColors {
   static const border        = Color(0xFFE8E5FF);
 }
 
+enum PathwayType { university, apprenticeship }
+
+/// A1 rule enforced in one place: route color is looked up, never hardcoded.
+Color routeColorFor(PathwayType type) => switch (type) {
+      PathwayType.university => AppColors.uniRoute,
+      PathwayType.apprenticeship => AppColors.appRoute,
+    };
+
+/// A7 — color is never the sole differentiator; badges always carry text.
+String pathwayLabel(PathwayType type) => switch (type) {
+      PathwayType.university => 'University',
+      PathwayType.apprenticeship => 'Apprenticeship',
+    };
+
+const _font = 'Nunito';
+const _mono = 'IBMPlexMono';
+
+TextStyle _n(double size, FontWeight w, Color c) =>
+    TextStyle(fontFamily: _font, fontSize: size, fontWeight: w, color: c);
+
+/// A1/A4 — data values (UCAS points, £9,535/yr, 3 yrs) in mono so the
+/// numbers students compare are instantly scannable.
+abstract final class AppText {
+  static const data = TextStyle(
+    fontFamily: _mono,
+    fontSize: 13,
+    fontWeight: FontWeight.w500,
+    color: AppColors.textDark,
+    letterSpacing: 0.2,
+  );
+}
+
 BoxDecoration gradientBox({double radius = 16, List<Color>? colors}) =>
     BoxDecoration(
       gradient: LinearGradient(
@@ -34,16 +89,10 @@ BoxDecoration gradientBox({double radius = 16, List<Color>? colors}) =>
       borderRadius: BorderRadius.circular(radius),
     );
 
-// Use system font stack - no google_fonts dependency needed
-const _fontFamily = 'Nunito';
-
-TextStyle _n(double size, FontWeight w, Color c) =>
-    TextStyle(fontFamily: _fontFamily, fontSize: size, fontWeight: w, color: c);
-
 class AppTheme {
   static ThemeData get light => ThemeData(
     useMaterial3: true,
-    fontFamily: _fontFamily,
+    fontFamily: _font,
     scaffoldBackgroundColor: AppColors.bgPage,
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primary,
@@ -67,8 +116,9 @@ class AppTheme {
         foregroundColor: Colors.white,
         minimumSize: const Size(double.infinity, 54),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 16, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(fontFamily: _font, fontSize: 16, fontWeight: FontWeight.w700),
         elevation: 0,
+        splashFactory: InkRipple.splashFactory,
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -77,7 +127,7 @@ class AppTheme {
         side: const BorderSide(color: AppColors.primary, width: 2),
         minimumSize: const Size(double.infinity, 54),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 16, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(fontFamily: _font, fontSize: 16, fontWeight: FontWeight.w700),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -93,13 +143,13 @@ class AppTheme {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: AppColors.primary, width: 2)),
-      hintStyle: const TextStyle(fontFamily: _fontFamily, color: AppColors.textLight, fontSize: 14),
+      hintStyle: const TextStyle(fontFamily: _font, color: AppColors.textLight, fontSize: 14),
     ),
     appBarTheme: const AppBarTheme(
       backgroundColor: AppColors.bgPage,
       elevation: 0,
       titleTextStyle: TextStyle(
-        fontFamily: _fontFamily, fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textDark),
+        fontFamily: _font, fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textDark),
       iconTheme: IconThemeData(color: AppColors.textDark),
     ),
   );
@@ -107,7 +157,7 @@ class AppTheme {
   static ThemeData get dark => ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    fontFamily: _fontFamily,
+    fontFamily: _font,
     scaffoldBackgroundColor: const Color(0xFF0F0D1E),
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primary,
@@ -138,7 +188,7 @@ class AppTheme {
       backgroundColor: Color(0xFF0F0D1E),
       elevation: 0,
       titleTextStyle: TextStyle(
-        fontFamily: _fontFamily, fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white),
+        fontFamily: _font, fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white),
       iconTheme: IconThemeData(color: Colors.white),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -154,7 +204,7 @@ class AppTheme {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: AppColors.primary, width: 2)),
-      hintStyle: const TextStyle(fontFamily: _fontFamily, color: Color(0xFF7B6EA0), fontSize: 14),
+      hintStyle: const TextStyle(fontFamily: _font, color: Color(0xFF7B6EA0), fontSize: 14),
     ),
   );
 }

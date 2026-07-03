@@ -1,54 +1,107 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <base href="$FLUTTER_BASE_HREF">
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="EduPaths - Discover your future career">
+  <meta name="description" content="EduPaths — Compare university and apprenticeship pathways for UK students. Entry requirements, costs, pay and how to apply.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="EduPaths">
+  <meta name="theme-color" content="#5B4FE9">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
   <link rel="icon" type="image/png" href="favicon.png"/>
-  <title>EduPaths</title>
+  <title>EduPaths — Discover Your Future Career</title>
   <link rel="manifest" href="manifest.json">
+  <noscript>
+    <style>body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f8f9ff;text-align:center;}</style>
+    <div><h2 style="color:#2E3B7C">EduPaths requires JavaScript</h2><p>Please enable JavaScript in your browser to use EduPaths.</p></div>
+  </noscript>
   <style>
-    body{margin:0;background:#f8f9ff;}
-    #loading{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Arial,sans-serif;color:#2E3B7C;background:#f8f9ff;}
-    .sp{width:48px;height:48px;border:4px solid #e0e4ff;border-top-color:#2E3B7C;border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:20px;}
-    @keyframes spin{to{transform:rotate(360deg);}}
+    *{box-sizing:border-box;}
+    body{margin:0;background:#f8f9ff;font-family:Arial,sans-serif;}
+    #loading{
+      position:fixed;top:0;left:0;right:0;bottom:0;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      background:#f8f9ff;z-index:9999;
+    }
+    .logo{font-size:28px;font-weight:900;color:#5B4FE9;margin-bottom:24px;letter-spacing:-1px;}
+    .logo span{color:#F2B33D;}
+    .skeletons{display:flex;flex-direction:column;gap:12px;width:90%;max-width:340px;margin-bottom:32px;}
+    .sk{background:#E8E5FF;border-radius:12px;height:80px;animation:pulse 1.4s ease-in-out infinite;}
+    .sk:nth-child(2){height:60px;opacity:.7;}
+    .sk:nth-child(3){height:60px;opacity:.4;}
+    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+    @media (prefers-reduced-motion: reduce){.sk{animation:none;opacity:.6;}}
+    #slow-msg{
+      display:none;margin-top:16px;padding:16px 20px;
+      background:#fff;border-radius:12px;border:2px solid #E8E5FF;
+      text-align:center;max-width:300px;
+    }
+    #slow-msg p{margin:0 0 12px;color:#64748B;font-size:14px;}
+    #slow-msg button{
+      background:#5B4FE9;color:#fff;border:none;padding:10px 24px;
+      border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;
+    }
   </style>
 </head>
 <body>
-  <div id="loading">
-    <div class="sp"></div>
-    <div style="font-weight:900;font-size:22px">EduPaths</div>
-    <div style="font-size:13px;margin-top:8px;color:#888">Loading your future...</div>
+  <div id="loading" role="status" aria-label="Loading EduPaths">
+    <div class="logo">Edu<span>Paths</span></div>
+    <div class="skeletons">
+      <div class="sk"></div>
+      <div class="sk"></div>
+      <div class="sk"></div>
+    </div>
+    <div id="slow-msg">
+      <p>Taking longer than usual…</p>
+      <button onclick="location.reload()">Retry</button>
+    </div>
   </div>
+
   <script>
-    var serviceWorkerVersion = {{flutter_service_worker_version}};
-    function hide(){var l=document.getElementById('loading');if(l)l.style.display='none';}
-    var s=document.createElement('script');
-    s.src='flutter_bootstrap.js';
-    s.async=true;
-    s.onload=hide;
-    s.onerror=function(){
-      var s2=document.createElement('script');
-      s2.src='flutter.js';
-      s2.defer=true;
-      s2.onload=function(){
-        window.addEventListener('load',function(){
-          _flutter.loader.load({
-            serviceWorkerSettings:{serviceWorkerVersion:serviceWorkerVersion},
-            onEntrypointLoaded:function(e){
-              e.initializeEngine().then(function(r){hide();r.runApp();});
-            }
-          });
-        });
-      };
-      document.head.appendChild(s2);
-    };
-    document.head.appendChild(s);
+    // ---- Shell hardening (spec F5 + A3) ----
+    // CORRECTION vs. previous draft: the loader was hidden on script *download*
+    // (s.onload), which fires long before Flutter paints anything — users got a
+    // blank white screen while the engine initialised, and the 10s escape
+    // hatch was disarmed too early. Flutter dispatches 'flutter-first-frame'
+    // on window when the app actually renders; that is the correct signal.
+
+    var escapeTimer = setTimeout(function () {
+      var m = document.getElementById('slow-msg');
+      if (m) m.style.display = 'block';
+    }, 10000);
+
+    function hideLoading() {
+      clearTimeout(escapeTimer);
+      var l = document.getElementById('loading');
+      if (l) {
+        l.style.transition = 'opacity 0.3s';
+        l.style.opacity = '0';
+        setTimeout(function () { l.remove(); }, 300);
+      }
+    }
+
+    function showFatal() {
+      clearTimeout(escapeTimer);
+      document.body.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;font-family:Arial;text-align:center;padding:24px">' +
+        '<h2 style="color:#2E3B7C;margin:0 0 8px">Could not load EduPaths</h2>' +
+        '<p style="color:#64748B;margin:0 0 20px">Check your connection and try again.</p>' +
+        '<button onclick="location.reload()" style="background:#5B4FE9;color:white;border:none;padding:12px 28px;border-radius:8px;font-size:16px;cursor:pointer">Retry</button>' +
+        '</div>';
+    }
+
+    // Hide the shell only when Flutter paints its first frame.
+    window.addEventListener('flutter-first-frame', hideLoading);
+
+    // Flutter 3.22+ single-entrypoint bootstrap (generated at build time).
+    var s = document.createElement('script');
+    s.src = 'flutter_bootstrap.js';
+    s.async = true;
+    s.onerror = showFatal;
+    document.body.appendChild(s);
   </script>
 </body>
 </html>
