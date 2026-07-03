@@ -2,18 +2,22 @@
 class AppConstants {
   // ── Supabase ──────────────────────────────────────────────
   // Prefers the value passed at build time via --dart-define (see
-  // netlify.toml); falls back to the current project values. The anon key is
-  // public by design (protected by Supabase RLS) — but the Anthropic API key
-  // must NEVER appear here or in any dart-define.
-  static const supabaseUrl = String.fromEnvironment(
-    'SUPABASE_URL',
-    defaultValue: 'https://ijpcynpztcmbgjhocsan.supabase.co',
-  );
-  static const supabaseAnonKey = String.fromEnvironment(
-    'SUPABASE_ANON_KEY',
-    defaultValue:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqcGN5bnB6dGNtYmdqaG9jc2FuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NzY2NDYsImV4cCI6MjA5NDM1MjY0Nn0.NmO5hzeiM3Tefh9gu2QMkeApYE2-7Uf91-r-jEcdHDg',
-  );
+  // netlify.toml); falls back to the built-in project values whenever the
+  // define is ABSENT **or empty** — an unset build variable expands to an
+  // empty string, which must never blank out the Supabase address (this
+  // exact failure broke login on 3 Jul 2026). The anon key is public by
+  // design (protected by Supabase RLS) — but the Anthropic API key must
+  // NEVER appear here or in any dart-define.
+  static const _envUrl = String.fromEnvironment('SUPABASE_URL');
+  static const _envAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+
+  static const _fallbackUrl = 'https://ijpcynpztcmbgjhocsan.supabase.co';
+  static const _fallbackAnonKey =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqcGN5bnB6dGNtYmdqaG9jc2FuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NzY2NDYsImV4cCI6MjA5NDM1MjY0Nn0.NmO5hzeiM3Tefh9gu2QMkeApYE2-7Uf91-r-jEcdHDg';
+
+  static const supabaseUrl = _envUrl != '' ? _envUrl : _fallbackUrl;
+  static const supabaseAnonKey =
+      _envAnonKey != '' ? _envAnonKey : _fallbackAnonKey;
 
   // ── App ───────────────────────────────────────────────────
   static const appName = 'EduPaths';
