@@ -1,6 +1,6 @@
 // lib/features/profile/screens/admin_screen.dart
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../../../core/widgets/external_link.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -589,7 +589,7 @@ class _CourseAdminCardState extends ConsumerState<_CourseAdminCard> {
           GestureDetector(
             onTap: () {
               final url = widget.course['url'] as String? ?? '';
-              if (url.isNotEmpty) launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+              if (url.isNotEmpty) launchExternal(url); // F4 — normalized, new tab
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),

@@ -1,9 +1,19 @@
 // lib/core/constants/app_constants.dart
 class AppConstants {
   // ── Supabase ──────────────────────────────────────────────
-  static const supabaseUrl = 'https://ijpcynpztcmbgjhocsan.supabase.co';
-  static const supabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqcGN5bnB6dGNtYmdqaG9jc2FuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NzY2NDYsImV4cCI6MjA5NDM1MjY0Nn0.NmO5hzeiM3Tefh9gu2QMkeApYE2-7Uf91-r-jEcdHDg';
+  // Prefers the value passed at build time via --dart-define (see
+  // netlify.toml); falls back to the current project values. The anon key is
+  // public by design (protected by Supabase RLS) — but the Anthropic API key
+  // must NEVER appear here or in any dart-define.
+  static const supabaseUrl = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://ijpcynpztcmbgjhocsan.supabase.co',
+  );
+  static const supabaseAnonKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+    defaultValue:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqcGN5bnB6dGNtYmdqaG9jc2FuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NzY2NDYsImV4cCI6MjA5NDM1MjY0Nn0.NmO5hzeiM3Tefh9gu2QMkeApYE2-7Uf91-r-jEcdHDg',
+  );
 
   // ── App ───────────────────────────────────────────────────
   static const appName = 'EduPaths';

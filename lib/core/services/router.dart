@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
 import '../constants/app_constants.dart';
+import '../router/app_router.dart' show NotFoundScreen;
 import '../../features/auth/screens/auth_screens.dart';
 import '../../features/onboarding/screens/onboarding_screens.dart';
 import '../../features/home/screens/home_screen.dart';
@@ -63,6 +64,8 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       return null;
     },
+    // F6 — branded 404 for any unknown path (never a blank/default error page)
+    errorBuilder: (context, state) => const NotFoundScreen(),
     routes: [
       // ── Public routes ──────────────────────────────────────
       GoRoute(path: AppConstants.routeSplash,

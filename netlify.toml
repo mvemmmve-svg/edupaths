@@ -34,7 +34,9 @@
 [build.environment]
   # Pin to the exact version you develop with (`flutter --version`), e.g. "3.32.5".
   # Any published Flutter tag or branch name works here.
-  FLUTTER_VERSION = "stable"
+  # Pinned to the exact version this project was created with (.metadata
+  # revision dec2ee5c... = Flutter 3.24.5). Never build against a moving target.
+  FLUTTER_VERSION = "3.24.5"
 
 # ---------- Headers ----------
 

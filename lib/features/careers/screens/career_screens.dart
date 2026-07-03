@@ -1,7 +1,7 @@
 // lib/features/careers/screens/career_screens.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
-import 'package:url_launcher/url_launcher.dart';
+import '../../../core/widgets/external_link.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/models/models.dart';
@@ -430,10 +430,9 @@ class CourseDetailScreen extends ConsumerWidget {
                       content: Text('No link available for this course.')));
                     return;
                   }
-                  final uri = Uri.tryParse(url);
-                  if (uri == null) return;
-                  // Open link in new browser tab
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  // F4 — normalize schemeless URLs (e.g. "www.ox.ac.uk")
+                  // and open in a new tab.
+                  await launchExternal(url);
                 }),
                 const SizedBox(height: 10),
                 OutlineBtn(label: 'Save Course', onPressed: () async {

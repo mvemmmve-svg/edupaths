@@ -1,6 +1,7 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/app_constants.dart';
@@ -8,6 +9,9 @@ import 'core/services/router.dart';
 import 'core/theme/app_theme.dart';
 
 void main() async {
+  // F2 — clean path URLs (/pathway/abc) instead of /#/ hash URLs.
+  // Pairs with the SPA rewrite in netlify.toml (F1).
+  usePathUrlStrategy();
   WidgetsFlutterBinding.ensureInitialized();
   
   // Catch any startup errors and show them instead of blank screen
