@@ -34,6 +34,15 @@ class AppColors {
   static const accentPink    = Color(0xFFEC4899);
   static const accentOrange  = Color(0xFFFF8C42);
 
+  // COMPATIBILITY ALIASES — older screens still reference the pre-rename
+  // color names. They point at the closest current token so everything
+  // compiles and looks consistent. The Phase 4 styling pass should replace
+  // decorative uses with success/warning/primary and keep uniRoute/appRoute
+  // strictly for pathway identity (spec A1).
+  static const accentGreen  = success;   // was general-purpose green
+  static const accentBlue   = uniRoute;  // was general-purpose blue
+  static const accentYellow = waypoint;  // was general-purpose yellow
+
   static const bgPage        = Color(0xFFF7F6FF);
   static const bgCard        = Color(0xFFFFFFFF);
   static const bgSurface     = Color(0xFFEEECFF);
