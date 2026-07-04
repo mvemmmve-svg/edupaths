@@ -190,7 +190,7 @@ class _CareerDetailState extends ConsumerState<CareerDetailScreen>
                   color: AppColors.primaryPale,
                   onTap: () {
                   final isPrem = ref.read(isPremiumProvider).valueOrNull ?? false;
-                  isPrem ? context.push(AppConstants.routeCompare) : context.push(AppConstants.routePricing);
+                  isPrem ? context.push('${AppConstants.routeCompare}?career=${widget.careerId}') : context.push(AppConstants.routePricing);
                 },
                   child: const Row(children: [
                     Text('⚖️', style: TextStyle(fontSize: 20)),
@@ -209,7 +209,7 @@ class _CareerDetailState extends ConsumerState<CareerDetailScreen>
                     Icon(Icons.chevron_right_rounded, color: AppColors.primary),
                   ])),
               ])),
-              const _SkillsTab(),
+              _SkillsTab(careerId: widget.careerId),
               coursesAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => ErrorView(message: e.toString()),
@@ -308,18 +308,41 @@ class _CoursesTab extends StatelessWidget {
   }
 }
 
-class _SkillsTab extends StatelessWidget {
-  const _SkillsTab();
+// Skills are stored per-career in the careers.skills column (jsonb) so
+// every career shows its own tailored list (user request, item 4).
+final _careerSkillsProvider =
+    FutureProvider.family<List<_SkillItem>, String>((ref, careerId) async {
+  try {
+    final res = await Supabase.instance.client
+        .from('careers').select('skills').eq('id', careerId).maybeSingle();
+    final raw = res?['skills'];
+    if (raw is List && raw.isNotEmpty) {
+      return raw.map((e) => _SkillItem(
+        (e['e'] ?? '💡') as String,
+        (e['n'] ?? '') as String,
+        ((e['p'] ?? 0.8) as num).toDouble(),
+      )).toList();
+    }
+  } catch (_) {}
+  // Fallback if a career has no tailored data yet
+  return const [
+    _SkillItem('💡', 'Problem Solving', 0.9),
+    _SkillItem('💬', 'Communication', 0.8),
+    _SkillItem('🤝', 'Teamwork', 0.75),
+    _SkillItem('📊', 'Analytical Thinking', 0.8),
+  ];
+});
+
+class _SkillsTab extends ConsumerWidget {
+  final String careerId;
+  const _SkillsTab({required this.careerId});
   @override
-  Widget build(BuildContext context) {
-    final skills = [
-      _SkillItem('💡', 'Problem Solving', 0.9),
-      _SkillItem('💬', 'Communication', 0.8),
-      _SkillItem('🧑‍💻', 'Technical Skills', 0.85),
-      _SkillItem('🤝', 'Teamwork', 0.75),
-      _SkillItem('🎨', 'Creativity', 0.7),
-      _SkillItem('📊', 'Analytical Thinking', 0.8),
-    ];
+  Widget build(BuildContext context, WidgetRef ref) {
+    final skillsAsync = ref.watch(_careerSkillsProvider(careerId));
+    final skills = skillsAsync.valueOrNull;
+    if (skills == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return ListView(padding: const EdgeInsets.all(20), children: [
       EduCard(child: Column(children: skills.map((s) => Padding(
         padding: const EdgeInsets.only(bottom: 16),
@@ -535,7 +558,7 @@ class AltRoutesScreen extends ConsumerWidget {
             PrimaryBtn(label: 'Compare All Routes ⚖️',
               onPressed: () {
                 final isPrem = ref.read(isPremiumProvider).valueOrNull ?? false;
-                if (isPrem) { context.push(AppConstants.routeCompare); }
+                if (isPrem) { context.push('${AppConstants.routeCompare}?career=$careerId'); }
                 else { context.push(AppConstants.routePricing); }
               }),
           ]),
@@ -545,16 +568,66 @@ class AltRoutesScreen extends ConsumerWidget {
   }
 }
 
-class CompareScreen extends StatelessWidget {
-  const CompareScreen({super.key});
+// Per-career route comparison facts, computed from the live catalogue
+// (user request, item 5): how many university courses vs apprenticeships
+// this career actually has in EduPaths, its typical salary, and its
+// required qualifications.
+final _compareFactsProvider = FutureProvider.family<Map<String, dynamic>, String>(
+  (ref, careerId) async {
+    final sb = Supabase.instance.client;
+    final result = <String, dynamic>{};
+    try {
+      final career = await sb.from('careers')
+          .select('name, avg_salary').eq('id', careerId).maybeSingle();
+      result['name'] = career?['name'];
+      result['salary'] = career?['avg_salary'];
+
+      final linked = await sb.from('career_course')
+          .select('courses(title)').eq('career_id', careerId);
+      int uni = 0, app = 0;
+      for (final row in (linked as List)) {
+        final c = row['courses'] as Map<String, dynamic>?;
+        if (c == null) continue;
+        final t = (c['title'] ?? '').toString().toLowerCase();
+        (t.contains('apprenticeship') || t.contains('bootcamp')) ? app++ : uni++;
+      }
+      result['uni'] = uni;
+      result['app'] = app;
+
+      final quals = await sb.from('career_preclass')
+          .select('importance, preclass!inner(title, type)')
+          .eq('career_id', careerId).eq('importance', 'required').limit(4);
+      result['required'] = (quals as List)
+          .map((q) => (q['preclass'] as Map)['title'] as String)
+          .toList();
+    } catch (_) {}
+    return result;
+  });
+
+class CompareScreen extends ConsumerWidget {
+  final String? careerId;
+  const CompareScreen({super.key, this.careerId});
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final facts = careerId != null && careerId!.isNotEmpty
+        ? ref.watch(_compareFactsProvider(careerId!)).valueOrNull
+        : null;
+    final careerName = facts?['name'] as String?;
+    final salary = facts?['salary'];
+    final uniCount = facts?['uni'] as int? ?? 0;
+    final appCount = facts?['app'] as int? ?? 0;
+    final required = (facts?['required'] as List?)?.cast<String>() ?? const [];
+
     final rows = [
       ['Duration',    '3-4 yrs',    '3-5 yrs',        '3-12 mo'],
       ['Cost',        '£28k-45k',   'Employer funded', '£3k-10k'],
       ['Earn salary', 'No',         'Yes',             'No'],
       ['Entry req.',  'A-levels',   '3 GCSEs+',        'None'],
       ['Time to job', 'Longer',     'Medium',          'Shorter'],
+      // Career-specific rows (only when opened from a career page)
+      if (facts != null)
+        ['In EduPaths', '$uniCount option${uniCount == 1 ? '' : 's'}',
+          '$appCount option${appCount == 1 ? '' : 's'}', '—'],
     ];
     final headers = [
       _CompareHeader('🎓', 'University', AppColors.primary),
@@ -563,12 +636,29 @@ class CompareScreen extends StatelessWidget {
     ];
     return Scaffold(
       backgroundColor: AppColors.bgPage,
-      appBar: AppBar(title: const Text('Compare Routes ⚖️'),
+      appBar: AppBar(title: Text(careerName != null ? 'Routes: $careerName ⚖️' : 'Compare Routes ⚖️'),
         leading: GestureDetector(onTap: () => context.pop(), child: const BackBtn()),
         actions: [IconButton(icon: const Icon(Icons.home_rounded), tooltip: 'Dashboard', onPressed: () => context.go(AppConstants.routeHome))]),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(children: [
+          if (careerName != null) ...[
+            EduCard(
+              color: AppColors.primaryPale,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Routes into $careerName', style: const TextStyle(
+                  fontFamily: 'Nunito', fontSize: 15, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                if (salary != null)
+                  Text('Typical salary: £$salary', style: const TextStyle(
+                    fontFamily: 'Nunito', fontSize: 12, color: AppColors.textMid)),
+                if (required.isNotEmpty)
+                  Text('Usually required: ${required.join(', ')}',
+                    style: const TextStyle(fontFamily: 'Nunito', fontSize: 12,
+                      color: AppColors.textMid)),
+              ])),
+            const SizedBox(height: 16),
+          ],
           Row(children: [
             const SizedBox(width: 90),
             ...headers.map((h) => Expanded(child: Padding(
