@@ -172,3 +172,53 @@ final unreadSupportProvider = FutureProvider<int>((ref) async {
     return 0;
   }
 });
+
+
+// ── Daily streak (interactivity) ───────────────────────────────
+// Records today's visit and counts how many consecutive days the
+// person has opened the app. Drives the 🔥 chip on Home.
+final streakProvider = FutureProvider<int>((ref) async {
+  final uid = ref.watch(currentUidProvider);
+  if (uid == null) return 0;
+  final sb = Supabase.instance.client;
+  try {
+    await sb.from('user_checkins').upsert({'user_id': uid});
+  } catch (_) {}
+  try {
+    final rows = await sb.from('user_checkins')
+        .select('day').eq('user_id', uid)
+        .order('day', ascending: false).limit(60);
+    final days = (rows as List)
+        .map((e) => DateTime.parse(e['day'] as String))
+        .toList();
+    if (days.isEmpty) return 0;
+    var streak = 0;
+    var cursor = DateTime.now();
+    DateTime dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+    cursor = dateOnly(cursor);
+    for (final d in days) {
+      final dd = dateOnly(d);
+      if (dd == cursor) {
+        streak++;
+        cursor = cursor.subtract(const Duration(days: 1));
+      } else if (dd.isBefore(cursor)) {
+        break;
+      }
+    }
+    return streak;
+  } catch (_) {
+    return 0;
+  }
+});
+
+
+// ── Badges (interactivity) — computed from real activity ──────
+final swipeCountProvider = FutureProvider<int>((ref) async {
+  final uid = ref.watch(currentUidProvider);
+  if (uid == null) return 0;
+  try {
+    final res = await Supabase.instance.client
+        .from('career_feedback').select('career_id').eq('user_id', uid);
+    return (res as List).length;
+  } catch (_) { return 0; }
+});
