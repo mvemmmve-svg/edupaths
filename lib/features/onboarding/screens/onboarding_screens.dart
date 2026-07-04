@@ -326,21 +326,26 @@ class _SummaryState extends ConsumerState<SummaryScreen> {
           DbService.saveUserTraits(user.id, ob.traitIds.toList()),
           DbService.savePreferences(ob.prefs),
         ]);
-        // Generate matches - use user's supabase uid directly
-        final uid = Supabase.instance.client.auth.currentUser?.id;
-        if (uid != null) {
-          await Supabase.instance.client
-              .rpc('generate_smart_matches', params: {'p_user_uid': uid})
-              .timeout(const Duration(seconds: 12), onTimeout: () => null);
-        }
-        await DbService.markOnboardingComplete(user.id);
-        // Invalidate AFTER matches are generated so home screen gets fresh data
-        ref.invalidate(matchesProvider);
-        ref.invalidate(appUserProvider);
-        ref.invalidate(isPremiumProvider);
-        // Small delay to let providers settle before navigation
-        await Future.delayed(const Duration(milliseconds: 400));
       }
+      // Generate matches — this must NOT depend on the profile fetch above
+      // succeeding. If the user row is slow to appear right after signup,
+      // we still generate matches from the auth uid; previously this whole
+      // step was silently skipped and Home showed no matches.
+      final uid = Supabase.instance.client.auth.currentUser?.id;
+      if (uid != null) {
+        await Supabase.instance.client
+            .rpc('generate_smart_matches', params: {'p_user_uid': uid})
+            .timeout(const Duration(seconds: 12), onTimeout: () => null);
+      }
+      if (user != null) {
+        await DbService.markOnboardingComplete(user.id);
+      }
+      // Invalidate AFTER matches are generated so home screen gets fresh data
+      ref.invalidate(matchesProvider);
+      ref.invalidate(appUserProvider);
+      ref.invalidate(isPremiumProvider);
+      // Small delay to let providers settle before navigation
+      await Future.delayed(const Duration(milliseconds: 400));
       if (!mounted) return;
       // Invalidate again after navigation to force re-fetch
       ref.invalidate(matchesProvider);
