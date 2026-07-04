@@ -102,8 +102,28 @@ class HomeScreen extends ConsumerWidget {
                   Text('Hi, ${user?.firstName ?? 'Explorer'}! 👋',
                     style: const TextStyle(fontFamily: 'Nunito', fontSize: 14,
                       color: AppColors.textMid, fontWeight: FontWeight.w600)),
-                  Text("Let's explore your future.",
-                    style: Theme.of(context).textTheme.headlineMedium),
+                  Row(children: [
+                    Flexible(child: Text("Let's explore your future.",
+                      style: Theme.of(context).textTheme.headlineMedium)),
+                    const SizedBox(width: 8),
+                    // 🔥 streak chip — consecutive days in the app
+                    Consumer(builder: (c, r, _) {
+                      final n = r.watch(streakProvider).valueOrNull ?? 0;
+                      if (n < 2) return const SizedBox();
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.accentOrange.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: AppColors.accentOrange.withOpacity(0.4))),
+                        child: Text('🔥 $n', style: const TextStyle(
+                          fontFamily: 'Nunito', fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.accentOrange)));
+                    }),
+                  ]),
                 ]),
               ),
               Row(children: [
@@ -178,7 +198,75 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 14),
+
+            // ── Discover deck entry (interactivity) ──
+            GestureDetector(
+              onTap: () => context.push('/discover'),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [
+                    Color(0xFF7B72F0), Color(0xFF5B4FE9)]),
+                  borderRadius: BorderRadius.circular(14)),
+                child: const Row(children: [
+                  Text('🔥', style: TextStyle(fontSize: 22)),
+                  SizedBox(width: 10),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Discover careers',
+                      style: TextStyle(fontFamily: 'Nunito', fontSize: 14,
+                        fontWeight: FontWeight.w900, color: Colors.white)),
+                    Text('Swipe through careers — like the ones that sound like you',
+                      style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5,
+                        color: Colors.white70)),
+                  ])),
+                  Icon(Icons.chevron_right_rounded, color: Colors.white),
+                ]),
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // ── Career of the Day (rotates daily) ──
+            Consumer(builder: (c, r, _) {
+              final careers = r.watch(allCareersProvider).valueOrNull;
+              if (careers == null || careers.isEmpty) return const SizedBox();
+              final today = DateTime.now();
+              final idx = (today.year * 372 + today.month * 31 + today.day)
+                  % careers.length;
+              final cotd = careers[idx];
+              return GestureDetector(
+                onTap: () => context.push('/pathway/${cotd.id}'),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgCard,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.border)),
+                  child: Row(children: [
+                    const Text('📅', style: TextStyle(fontSize: 20)),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('Career of the day',
+                        style: TextStyle(fontFamily: 'Nunito', fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textMid)),
+                      Text(cotd.displayName, style: const TextStyle(
+                        fontFamily: 'Nunito', fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textDark)),
+                    ])),
+                    Text(cotd.salaryDisplay, style: const TextStyle(
+                      fontFamily: 'Nunito', fontSize: 12,
+                      fontWeight: FontWeight.w800, color: AppColors.success)),
+                  ]),
+                ));
+            }),
+
+            const SizedBox(height: 14),
 
             // ── Top AI Match Hero ────────────────────
             matchesAsync.when(
