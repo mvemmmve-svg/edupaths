@@ -121,8 +121,12 @@ class ProfileScreen extends ConsumerWidget {
           userAsync.when(
             loading: () => const SizedBox(), error: (_, __) => const SizedBox(),
             data: (user) => user?.isAdmin == true
-              ? _MenuItem(emoji: '🛠', label: 'Admin Panel',
-                  onTap: () => context.push(AppConstants.routeAdmin))
+              ? Column(children: [
+                  _MenuItem(emoji: '🛠', label: 'Admin Panel',
+                    onTap: () => context.push(AppConstants.routeAdmin)),
+                  _MenuItem(emoji: '📥', label: 'Support Inbox',
+                    onTap: () => context.push('/admin-inbox')),
+                ])
               : const SizedBox()),
 
           const SizedBox(height: 8),
@@ -290,7 +294,16 @@ class ProfileScreen extends ConsumerWidget {
           const Text('Having trouble logging in or using EduPaths? We are here to help.',
             style: TextStyle(fontFamily: 'Nunito', fontSize: 14,
               color: AppColors.textMid)),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          // Direct line to the team — messages arrive in the admin's
+          // Support Inbox and replies come back right here in the app.
+          PrimaryBtn(label: '💬 Message Support', onPressed: () {
+            Navigator.pop(ctx);
+            final loggedIn =
+                Supabase.instance.client.auth.currentUser != null;
+            context.push(loggedIn ? '/support' : AppConstants.routeLogin);
+          }),
+          const SizedBox(height: 16),
           EduCard(child: Column(children: [
             _ContactRow(emoji: '📧', label: 'General Support',
               value: 'support@edupaths.co.uk'),
