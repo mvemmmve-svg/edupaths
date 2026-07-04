@@ -59,7 +59,9 @@ final searchQueryProvider = StateProvider<String>((ref) => '');
 // ── Roadmap selected career ──────────────────────────────────────────────
 final roadmapCareerIdProvider = StateProvider<String>((ref) => '');
 
-final savedFilterProvider = StateProvider<String>((ref) => 'All');
+// Lowercase 'all' — the Saved screen chips and item types are lowercase,
+// so the old default 'All' matched nothing until a chip was clicked.
+final savedFilterProvider = StateProvider<String>((ref) => 'all');
 
 // ── Interests ─────────────────────────────────────────────────
 final interestsProvider = FutureProvider<List<Interest>>((ref) async {
