@@ -152,3 +152,23 @@ class OnboardingNotifier extends Notifier<OnboardingState> {
 final onboardingProvider =
     NotifierProvider<OnboardingNotifier, OnboardingState>(
   OnboardingNotifier.new);
+
+
+// ── Unread support replies (item: bell notification) ──────────
+// Counts admin replies the user hasn't seen; drives the red dot on the
+// bell and the banner at the top of the Notifications screen.
+final unreadSupportProvider = FutureProvider<int>((ref) async {
+  final uid = ref.watch(currentUidProvider);
+  if (uid == null) return 0;
+  try {
+    final res = await Supabase.instance.client
+        .from('support_messages')
+        .select('id')
+        .eq('user_id', uid)
+        .eq('sender', 'admin')
+        .eq('read_by_user', false);
+    return (res as List).length;
+  } catch (_) {
+    return 0;
+  }
+});
