@@ -1,6 +1,7 @@
 // lib/features/notifications/screens/notifications_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/services/providers.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_theme.dart';
@@ -56,6 +57,33 @@ class NotificationsScreen extends ConsumerWidget {
         ],
       ),
       body: Column(children: [
+        // Support reply alert — tapping opens the conversation
+        Consumer(builder: (c, r, _) {
+          final n = r.watch(unreadSupportProvider).valueOrNull ?? 0;
+          if (n == 0) return const SizedBox();
+          return GestureDetector(
+            onTap: () async {
+              await context.push('/support');
+              r.invalidate(unreadSupportProvider);
+            },
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.primaryPale,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.primary.withOpacity(0.35))),
+              child: Row(children: [
+                const Text('💬', style: TextStyle(fontSize: 20)),
+                const SizedBox(width: 10),
+                Expanded(child: Text(
+                  n == 1 ? 'Support has replied to your message'
+                         : 'Support has sent you $n replies',
+                  style: const TextStyle(fontFamily: 'Nunito', fontSize: 13.5,
+                    fontWeight: FontWeight.w800, color: AppColors.textDark))),
+                const Icon(Icons.chevron_right_rounded, color: AppColors.primary),
+              ])));
+        }),
         // Category filter
         SizedBox(height: 52,
           child: ListView.separated(
