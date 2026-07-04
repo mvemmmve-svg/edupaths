@@ -26,14 +26,10 @@
       display:flex;flex-direction:column;align-items:center;justify-content:center;
       background:#f8f9ff;z-index:9999;
     }
-    .logo{font-size:28px;font-weight:900;color:#5B4FE9;margin-bottom:24px;letter-spacing:-1px;}
+    .logo{position:fixed;left:0;top:0;font-size:34px;font-weight:900;color:#5B4FE9;
+      letter-spacing:-1px;will-change:transform;user-select:none;}
     .logo span{color:#F2B33D;}
-    .skeletons{display:flex;flex-direction:column;gap:12px;width:90%;max-width:340px;margin-bottom:32px;}
-    .sk{background:#E8E5FF;border-radius:12px;height:80px;animation:pulse 1.4s ease-in-out infinite;}
-    .sk:nth-child(2){height:60px;opacity:.7;}
-    .sk:nth-child(3){height:60px;opacity:.4;}
-    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
-    @media (prefers-reduced-motion: reduce){.sk{animation:none;opacity:.6;}}
+    @media (prefers-reduced-motion: reduce){.logo{position:static;}}
     #slow-msg{
       display:none;margin-top:16px;padding:16px 20px;
       background:#fff;border-radius:12px;border:2px solid #E8E5FF;
@@ -48,12 +44,26 @@
 </head>
 <body>
   <div id="loading" role="status" aria-label="Loading EduPaths">
-    <div class="logo">Edu<span>Paths</span></div>
-    <div class="skeletons">
-      <div class="sk"></div>
-      <div class="sk"></div>
-      <div class="sk"></div>
-    </div>
+    <div class="logo" id="bounce-logo">Edu<span>Paths</span></div>
+    <script>
+      // DVD-style bounce: the logo drifts and rebounds off the screen edges
+      // while Flutter loads (respects reduced-motion preferences).
+      (function () {
+        var el = document.getElementById('bounce-logo');
+        if (!el || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        var x = 40, y = 80, dx = 2.2, dy = 1.8, raf;
+        function step() {
+          var w = innerWidth - el.offsetWidth, h = innerHeight - el.offsetHeight;
+          x += dx; y += dy;
+          if (x <= 0 || x >= w) { dx = -dx; x = Math.max(0, Math.min(x, w)); }
+          if (y <= 0 || y >= h) { dy = -dy; y = Math.max(0, Math.min(y, h)); }
+          el.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+          raf = requestAnimationFrame(step);
+        }
+        raf = requestAnimationFrame(step);
+        addEventListener('flutter-first-frame', function () { cancelAnimationFrame(raf); });
+      })();
+    </script>
     <div id="slow-msg">
       <p>Taking longer than usual…</p>
       <button onclick="location.reload()">Retry</button>
