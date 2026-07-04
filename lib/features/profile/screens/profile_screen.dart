@@ -67,6 +67,46 @@ class ProfileScreen extends ConsumerWidget {
           const SizedBox(height: 20),
 
           // Stats (only if logged in)
+          // ── My Badges — earned from real activity ──
+          if (isLoggedIn) ...[
+            const SectionHeader(title: 'My Badges 🏅'),
+            const SizedBox(height: 8),
+            Consumer(builder: (c, r, _) {
+              final matches = r.watch(matchesProvider).valueOrNull ?? [];
+              final saved = r.watch(savedItemsProvider).valueOrNull ?? [];
+              final streak = r.watch(streakProvider).valueOrNull ?? 0;
+              final swipes = r.watch(swipeCountProvider).valueOrNull ?? 0;
+              final badges = [
+                ('🎯', 'Matched', 'Get your career matches', matches.isNotEmpty),
+                ('🔖', 'Collector', 'Save your first item', saved.isNotEmpty),
+                ('🔥', 'On a roll', '3-day streak', streak >= 3),
+                ('🃏', 'Explorer', 'Swipe 10 careers in Discover', swipes >= 10),
+                ('💎', 'Superfan', '7-day streak', streak >= 7),
+              ];
+              return EduCard(child: Wrap(spacing: 8, runSpacing: 8, children: [
+                for (final b in badges)
+                  Tooltip(message: b.$3, child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: b.$4 ? AppColors.primaryPale : AppColors.bgGrey,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: b.$4
+                        ? AppColors.primary.withOpacity(0.4)
+                        : AppColors.border)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Opacity(opacity: b.$4 ? 1 : 0.35,
+                        child: Text(b.$1, style: const TextStyle(fontSize: 16))),
+                      const SizedBox(width: 6),
+                      Text(b.$2, style: TextStyle(fontFamily: 'Nunito',
+                        fontSize: 12, fontWeight: FontWeight.w800,
+                        color: b.$4 ? AppColors.textDark : AppColors.textLight)),
+                    ]))),
+              ]));
+            }),
+            const SizedBox(height: 16),
+          ],
+
           if (isLoggedIn) ...[
             Row(children: [
               Expanded(child: _Stat(
