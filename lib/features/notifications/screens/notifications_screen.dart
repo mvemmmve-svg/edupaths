@@ -61,9 +61,11 @@ class NotificationsScreen extends ConsumerWidget {
         Consumer(builder: (c, r, _) {
           final n = r.watch(unreadSupportProvider).valueOrNull ?? 0;
           if (n == 0) return const SizedBox();
+          final isAdmin =
+              r.watch(appUserProvider).valueOrNull?.isAdmin == true;
           return GestureDetector(
             onTap: () async {
-              await context.push('/support');
+              await context.push(isAdmin ? '/admin-inbox' : '/support');
               r.invalidate(unreadSupportProvider);
             },
             child: Container(
@@ -77,8 +79,11 @@ class NotificationsScreen extends ConsumerWidget {
                 const Text('💬', style: TextStyle(fontSize: 20)),
                 const SizedBox(width: 10),
                 Expanded(child: Text(
-                  n == 1 ? 'Support has replied to your message'
-                         : 'Support has sent you $n replies',
+                  isAdmin
+                    ? (n == 1 ? 'A user has messaged support'
+                              : '$n unread support messages from users')
+                    : (n == 1 ? 'Support has replied to your message'
+                              : 'Support has sent you $n replies'),
                   style: const TextStyle(fontFamily: 'Nunito', fontSize: 13.5,
                     fontWeight: FontWeight.w800, color: AppColors.textDark))),
                 const Icon(Icons.chevron_right_rounded, color: AppColors.primary),
