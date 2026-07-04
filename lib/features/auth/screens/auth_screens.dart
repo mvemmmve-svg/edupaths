@@ -23,23 +23,38 @@ class SplashScreen extends StatelessWidget {
         child: SafeArea(child: Padding(
           padding: const EdgeInsets.all(28),
           child: Column(children: [
-            const Spacer(flex: 2),
-            Container(width: 90, height: 90,
+            const Spacer(),
+            Container(width: 72, height: 72,
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.white.withOpacity(0.3), width: 2)),
-              child: const Icon(Icons.school_rounded, size: 48, color: Colors.white)),
-            const SizedBox(height: 24),
+              child: const Icon(Icons.school_rounded, size: 40, color: Colors.white)),
+            const SizedBox(height: 16),
             const Text('EduPaths', style: TextStyle(
-              fontFamily: 'Nunito', fontSize: 42, fontWeight: FontWeight.w900,
+              fontFamily: 'Nunito', fontSize: 38, fontWeight: FontWeight.w900,
               color: Colors.white, letterSpacing: -1)),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(AppConstants.appTagline,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.white.withOpacity(0.8),
-                fontFamily: 'Nunito', fontWeight: FontWeight.w600, height: 1.5)),
-            const Spacer(flex: 3),
+              style: TextStyle(fontSize: 15, color: Colors.white.withOpacity(0.8),
+                fontFamily: 'Nunito', fontWeight: FontWeight.w600, height: 1.4)),
+            const SizedBox(height: 24),
+            // ── How it works — a clear 4-step explainer instead of an
+            //    empty blue screen (user request, item 2) ──────────────
+            const _HowItWorksStep(emoji: '🎯', number: '1',
+              title: 'Tell us about you',
+              subtitle: 'Pick your interests and what you enjoy doing.'),
+            const _HowItWorksStep(emoji: '✨', number: '2',
+              title: 'Get your career matches',
+              subtitle: 'Our AI finds careers that genuinely fit you.'),
+            const _HowItWorksStep(emoji: '🗺️', number: '3',
+              title: 'Follow your roadmap',
+              subtitle: 'See the exact GCSEs, A-Levels, unis or apprenticeships to aim for.'),
+            const _HowItWorksStep(emoji: '🤖', number: '4',
+              title: 'Ask EduBot anything',
+              subtitle: 'Your AI guide for every education question, any time.'),
+            const Spacer(),
             ElevatedButton(
               onPressed: () => context.push(AppConstants.routeWelcome),
               style: ElevatedButton.styleFrom(
@@ -592,4 +607,38 @@ class _PassField extends StatelessWidget {
         onTap: onToggle,
         child: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
           size: 20)) : null));
+}
+
+
+// Landing-page explainer row (item 2)
+class _HowItWorksStep extends StatelessWidget {
+  final String emoji, number, title, subtitle;
+  const _HowItWorksStep({required this.emoji, required this.number,
+    required this.title, required this.subtitle});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.18))),
+      child: Row(children: [
+        Container(width: 34, height: 34, alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.18), shape: BoxShape.circle),
+          child: Text(emoji, style: const TextStyle(fontSize: 17))),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+          Text('$number. $title', style: const TextStyle(
+            fontFamily: 'Nunito', fontSize: 14,
+            fontWeight: FontWeight.w800, color: Colors.white)),
+          Text(subtitle, style: TextStyle(fontFamily: 'Nunito', fontSize: 12,
+            color: Colors.white.withOpacity(0.85), height: 1.3)),
+        ])),
+      ]),
+    ),
+  );
 }
