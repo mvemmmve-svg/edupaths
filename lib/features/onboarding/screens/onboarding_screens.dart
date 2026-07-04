@@ -1,4 +1,5 @@
 // lib/features/onboarding/screens/onboarding_screens.dart
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -448,7 +449,7 @@ class OnboardingCompleteScreen extends ConsumerWidget {
     final user = ref.watch(appUserProvider).valueOrNull;
     return Scaffold(
       backgroundColor: AppColors.bgPage,
-      body: SafeArea(child: Padding(
+      body: _ConfettiOverlay(child: SafeArea(child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(children: [
           const Spacer(),
@@ -467,7 +468,95 @@ class OnboardingCompleteScreen extends ConsumerWidget {
             onPressed: () => context.go(AppConstants.routeHome)),
           const SizedBox(height: 16),
         ]),
-      )),
+      ))),
     );
   }
+}
+
+// ── Celebration confetti (no external package) ─────────────────
+// Draws ~80 falling, spinning paper pieces for four seconds over the
+// completion screen. Respects the device's reduced-motion setting.
+class _ConfettiOverlay extends StatefulWidget {
+  final Widget child;
+  const _ConfettiOverlay({required this.child});
+  @override
+  State<_ConfettiOverlay> createState() => _ConfettiOverlayState();
+}
+
+class _ConfettiOverlayState extends State<_ConfettiOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+  late final List<_Paper> _papers;
+
+  @override
+  void initState() {
+    super.initState();
+    final rnd = math.Random();
+    _papers = List.generate(80, (_) => _Paper(
+      x: rnd.nextDouble(),
+      delay: rnd.nextDouble() * 0.4,
+      speed: 0.6 + rnd.nextDouble() * 0.8,
+      size: 6 + rnd.nextDouble() * 7,
+      spin: (rnd.nextDouble() - 0.5) * 10,
+      drift: (rnd.nextDouble() - 0.5) * 0.25,
+      color: [const Color(0xFF5B4FE9), const Color(0xFFF2B33D),
+        const Color(0xFF22C55E), const Color(0xFFEC4899),
+        const Color(0xFF2456E6)][rnd.nextInt(5)],
+    ));
+    _c = AnimationController(
+        vsync: this, duration: const Duration(seconds: 4));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final reduced =
+          MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+      if (!reduced) _c.forward();
+    });
+  }
+
+  @override
+  void dispose() { _c.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => Stack(children: [
+    widget.child,
+    IgnorePointer(child: AnimatedBuilder(
+      animation: _c,
+      builder: (c, _) => _c.isAnimating
+        ? CustomPaint(size: Size.infinite,
+            painter: _ConfettiPainter(_papers, _c.value))
+        : const SizedBox())),
+  ]);
+}
+
+class _Paper {
+  final double x, delay, speed, size, spin, drift;
+  final Color color;
+  const _Paper({required this.x, required this.delay, required this.speed,
+    required this.size, required this.spin, required this.drift,
+    required this.color});
+}
+
+class _ConfettiPainter extends CustomPainter {
+  final List<_Paper> papers;
+  final double t;
+  _ConfettiPainter(this.papers, this.t);
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final p in papers) {
+      final local = ((t - p.delay) * p.speed).clamp(0.0, 1.0);
+      if (local <= 0 || local >= 1) continue;
+      final dx = (p.x + p.drift * local) * size.width;
+      final dy = local * (size.height + 40) - 20;
+      final paint = Paint()..color = p.color.withOpacity(1 - local * 0.5);
+      canvas.save();
+      canvas.translate(dx, dy);
+      canvas.rotate(p.spin * local);
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset.zero, width: p.size, height: p.size * 0.6),
+        const Radius.circular(1.5)), paint);
+      canvas.restore();
+    }
+  }
+  @override
+  bool shouldRepaint(_ConfettiPainter old) => old.t != t;
 }
