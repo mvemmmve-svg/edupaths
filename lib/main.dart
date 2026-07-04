@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/app_constants.dart';
 import 'core/services/router.dart';
+import 'core/utils/update_guard.dart';
 import 'core/theme/app_theme.dart';
 
 void main() async {
@@ -53,6 +54,10 @@ class EduPathsApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp.router(
+      // Wraps every screen: shows the "new version ready" banner and
+      // refreshes user data when the person returns to this tab.
+      builder: (context, child) =>
+          UpdateGuard(child: child ?? const SizedBox()),
       title: AppConstants.appName,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
