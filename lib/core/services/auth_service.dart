@@ -55,10 +55,12 @@ class AuthService {
     required String password,
   }) async {
     try {
-      // Full sign out first to clear any cached session
-      await signOut();
-      await Future.delayed(const Duration(milliseconds: 300));
-
+      // NOTE: we intentionally do NOT sign out before signing in.
+      // The previous code called signOut(scope: global) here, which
+      // invalidated the user's session on EVERY device — so logging in
+      // on a laptop silently logged their phone out (and vice versa),
+      // forcing constant re-logins. signInWithPassword already replaces
+      // the local session safely.
       final res = await _sb.auth.signInWithPassword(
         email: email, password: password);
       if (res.user == null) return AuthResult(error: 'Login failed. Please try again.');
