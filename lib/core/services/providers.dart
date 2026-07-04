@@ -161,6 +161,17 @@ final unreadSupportProvider = FutureProvider<int>((ref) async {
   final uid = ref.watch(currentUidProvider);
   if (uid == null) return 0;
   try {
+    final user = await ref.watch(appUserProvider.future);
+    if (user?.isAdmin == true) {
+      // Admins: count unread messages FROM users across every thread
+      final res = await Supabase.instance.client
+          .from('support_messages')
+          .select('id')
+          .eq('sender', 'user')
+          .eq('read_by_admin', false);
+      return (res as List).length;
+    }
+    // Everyone else: count unread replies FROM support in their own thread
     final res = await Supabase.instance.client
         .from('support_messages')
         .select('id')
