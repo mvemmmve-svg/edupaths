@@ -92,8 +92,13 @@ class ProfileScreen extends ConsumerWidget {
           if (isLoggedIn) ...[
             _MenuItem(emoji: '👤', label: 'Account Details',
               onTap: () => _showPersonalInfo(context, ref)),
-            _MenuItem(emoji: '🏫', label: 'School Advisor Portal',
-              onTap: () => context.push('/school-advisor')),
+            // Advisor portal — only for advisor accounts (and admins)
+            userAsync.when(
+              loading: () => const SizedBox(), error: (_, __) => const SizedBox(),
+              data: (user) => (user?.roleType == 'advisor' || user?.isAdmin == true)
+                ? _MenuItem(emoji: '🏫', label: 'School Advisor Portal',
+                    onTap: () => context.push('/school-advisor'))
+                : const SizedBox()),
             _MenuItem(emoji: '🎯', label: 'Interests & Preferences',
               onTap: () => _editInterests(context, ref)),
             _MenuItem(emoji: '🗺️', label: 'My Roadmap',
@@ -322,7 +327,6 @@ class ProfileScreen extends ConsumerWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => Consumer(builder: (ctx, ref, _) {
-        final isDark = ref.watch(themeModeProvider) == ThemeMode.dark;
         return Padding(
           padding: const EdgeInsets.all(24),
           child: Column(mainAxisSize: MainAxisSize.min,
@@ -330,11 +334,6 @@ class ProfileScreen extends ConsumerWidget {
             const Text('Settings', style: TextStyle(
               fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w900)),
             const SizedBox(height: 20),
-            _SettingRow(emoji: '🌙', label: 'Dark Mode',
-              trailing: Switch(value: isDark,
-                onChanged: (v) => ref.read(themeModeProvider.notifier).state =
-                    v ? ThemeMode.dark : ThemeMode.light,
-                activeColor: AppColors.primary)),
             _SettingRow(emoji: '🔒', label: 'Privacy Policy',
               trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
               onTap: () {}),
