@@ -23,6 +23,9 @@
   command = """
     if [ ! -d flutter ]; then git clone https://github.com/flutter/flutter.git --depth 1 -b $FLUTTER_VERSION; fi && \
     flutter/bin/flutter --version && \
+    mkdir -p assets/fonts && \
+    if [ ! -f assets/fonts/Nunito.ttf ]; then curl -fsSL --retry 3 -o assets/fonts/Nunito.ttf 'https://raw.githubusercontent.com/google/fonts/main/ofl/nunito/Nunito%5Bwght%5D.ttf'; fi && \
+    if [ ! -f assets/fonts/IBMPlexMono-Regular.ttf ]; then curl -fsSL --retry 3 -o assets/fonts/IBMPlexMono-Regular.ttf 'https://raw.githubusercontent.com/google/fonts/main/ofl/ibmplexmono/IBMPlexMono-Regular.ttf'; fi && \
     flutter/bin/flutter pub get && \
     flutter/bin/flutter build web --release \
       --dart-define=SUPABASE_URL=$SUPABASE_URL \
@@ -71,11 +74,8 @@
     Cache-Control = "public, max-age=86400"
 
 # ---------- Redirects (order matters: functions before the SPA catch-all) ----------
-
-[[redirects]]
-  from = "/.netlify/functions/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
+# Note: /.netlify/functions/* needs no redirect rule — Netlify serves function
+# paths natively, and a rule for them is rejected as invalid.
 
 # Friendly API alias for the EduBot proxy (Phase 5)
 [[redirects]]
