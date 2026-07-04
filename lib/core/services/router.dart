@@ -13,6 +13,7 @@ import '../../features/careers/screens/career_screens.dart';
 import '../../features/roadmap/screens/roadmap_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
 import '../../features/edubot/screens/edubot_screen.dart';
+import '../../features/support/screens/support_screens.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/profile/screens/admin_screen.dart';
 import '../../features/notifications/screens/notifications_screen.dart';
@@ -23,7 +24,7 @@ import '../../shared/widgets/main_shell.dart';
 
 // Routes that require login — EXACT matches only
 const _loginRequired = {
-  '/saved', '/edubot', '/roadmap-plan',
+  '/saved', '/edubot', '/roadmap-plan', '/support', '/admin-inbox',
   '/notifications', '/who-are-you', '/checkout', '/parent', '/admin',
 };
 
@@ -54,6 +55,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (isLoggedIn && loc == AppConstants.routeWhoAreYou) {
         // Can't easily check isAdmin here without async — handled in login flow
         // But if they somehow land here, let them through
+      }
+
+      // Guests exploring the app are funnelled to the guest Profile page
+      // (which shows Sign Up / Log In) when they try to open gated content:
+      // any career detail page, Saved, or the Roadmap (item 4).
+      if (!isLoggedIn &&
+          (loc.startsWith('/pathway/') ||      // career detail pages
+           loc.startsWith('/course/') ||
+           loc.startsWith('/alt-routes/') ||
+           loc.startsWith('/why-match/') ||
+           loc == AppConstants.routeSaved ||
+           loc.startsWith(AppConstants.routeRoadmap))) {
+        return AppConstants.routeProfile;
       }
 
       // If not logged in and on a protected page → go to splash
@@ -110,6 +124,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Admin ──────────────────────────────────────────────
       GoRoute(path: '/school-advisor',
         builder: (c, s) => const SchoolAdvisorScreen()),
+      GoRoute(path: '/support',
+        builder: (c, s) => const SupportThreadScreen()),
+      GoRoute(path: '/admin-inbox',
+        builder: (c, s) => const AdminInboxScreen()),
+      GoRoute(path: '/admin-thread/:uid',
+        builder: (c, s) => SupportThreadScreen(
+          userId: s.pathParameters['uid'],
+          userLabel: s.uri.queryParameters['name'])),
       GoRoute(path: AppConstants.routeAdmin,
         builder: (c, s) => const AdminScreen()),
 
