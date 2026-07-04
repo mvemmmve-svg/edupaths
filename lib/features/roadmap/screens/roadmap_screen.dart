@@ -155,8 +155,6 @@ class _CareerQualificationGuide extends ConsumerStatefulWidget {
 }
 
 class _CareerQualificationGuideState extends ConsumerState<_CareerQualificationGuide> {
-  String _search = '';
-
   @override
   Widget build(BuildContext context) {
     final roadmapAsync = ref.watch(_careerRoadmapProvider(widget.careerId));
@@ -184,13 +182,6 @@ class _CareerQualificationGuideState extends ConsumerState<_CareerQualificationG
         // Sort alphabetically
         filtered.sort((a, b) =>
             (a['title'] as String).compareTo(b['title'] as String));
-        // Apply search filter
-        if (_search.isNotEmpty) {
-          filtered = filtered.where((q) =>
-              (q['title'] as String).toLowerCase()
-                  .contains(_search.toLowerCase())).toList();
-        }
-
         return Column(children: [
           // Type selector tabs
           SizedBox(height: 44,
@@ -213,14 +204,6 @@ class _CareerQualificationGuideState extends ConsumerState<_CareerQualificationG
                         fontWeight: FontWeight.w700,
                         color: sel ? Colors.white : AppColors.textMid)))));
             }).toList())),
-          const SizedBox(height: 12),
-          // Search bar
-          TextField(
-            onChanged: (v) => setState(() => _search = v),
-            decoration: InputDecoration(
-              hintText: 'Search ${selectedType}s...',
-              prefixIcon: const Icon(Icons.search_rounded, size: 18),
-              contentPadding: const EdgeInsets.symmetric(vertical: 10))),
           const SizedBox(height: 12),
           // Results count
           Text('${filtered.length} ${selectedType}s found',
@@ -486,6 +469,7 @@ class _FullQualBrowser extends ConsumerStatefulWidget {
 
 class _FullQualBrowserState extends ConsumerState<_FullQualBrowser> {
   String _type = 'GCSE';
+  String _search = '';
   List<Map<String, dynamic>>? _preclasses;
 
   @override
@@ -504,7 +488,11 @@ class _FullQualBrowserState extends ConsumerState<_FullQualBrowser> {
   Widget build(BuildContext context) {
     final types = ['GCSE', 'A-Level', 'BTEC', 'T-Level'];
     final typeEmojis = {'GCSE': '📗', 'A-Level': '📘', 'BTEC': '📙', 'T-Level': '📕'};
-    final filtered = _preclasses?.where((p) => p['type'] == _type).toList() ?? [];
+    var filtered = _preclasses?.where((p) => p['type'] == _type).toList() ?? [];
+    if (_search.isNotEmpty) {
+      filtered = filtered.where((p) => (p['title'] ?? '').toString()
+          .toLowerCase().contains(_search.toLowerCase())).toList();
+    }
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       SingleChildScrollView(
@@ -529,8 +517,19 @@ class _FullQualBrowserState extends ConsumerState<_FullQualBrowser> {
         )).toList()),
       ),
       const SizedBox(height: 12),
+      // Search bar — browse and filter every qualification of this type
+      TextField(
+        onChanged: (v) => setState(() => _search = v),
+        decoration: InputDecoration(
+          hintText: 'Search ${_type}s...',
+          prefixIcon: const Icon(Icons.search_rounded, size: 18),
+          contentPadding: const EdgeInsets.symmetric(vertical: 10))),
+      const SizedBox(height: 12),
       if (_preclasses == null)
         const Center(child: CircularProgressIndicator())
+      else if (filtered.isEmpty)
+        const EmptyState(emoji: '🔍', title: 'Nothing found',
+          subtitle: 'Try a different search term')
       else
         ...filtered.map((p) => _PreclassTile(p)),
     ]);
