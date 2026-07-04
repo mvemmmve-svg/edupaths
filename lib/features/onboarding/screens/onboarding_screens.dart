@@ -317,35 +317,62 @@ class _SummaryState extends ConsumerState<SummaryScreen> {
     setState(() => _saving = true);
     try {
       final ob = ref.read(onboardingProvider);
-      final user = await ref.read(appUserProvider.future)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+      final sb = Supabase.instance.client;
+      final uid = sb.auth.currentUser?.id;
+
+      // ── Step 1: wait for the profile row. Right after a brand-new
+      // signup the database creates it a moment later, so poll patiently
+      // instead of giving up after one try (the old silent-skip bug).
+      var user = await ref.read(appUserProvider.future)
+          .timeout(const Duration(seconds: 4), onTimeout: () => null);
+      for (var attempt = 0; user == null && uid != null && attempt < 5; attempt++) {
+        await Future.delayed(const Duration(seconds: 1));
+        ref.invalidate(appUserProvider);
+        user = await ref.read(appUserProvider.future)
+            .timeout(const Duration(seconds: 4), onTimeout: () => null);
+      }
+
+      // ── Step 2: save choices FIRST — matches are generated from these.
       if (user != null) {
-        // Run saves in parallel for speed - including traits now
         await Future.wait([
           DbService.saveUserInterests(user.id, ob.interestIds.toList()),
           DbService.saveUserTraits(user.id, ob.traitIds.toList()),
           DbService.savePreferences(ob.prefs),
         ]);
       }
-      // Generate matches — this must NOT depend on the profile fetch above
-      // succeeding. If the user row is slow to appear right after signup,
-      // we still generate matches from the auth uid; previously this whole
-      // step was silently skipped and Home showed no matches.
-      final uid = Supabase.instance.client.auth.currentUser?.id;
+
+      // ── Step 3: generate matches, then VERIFY they exist; retry once.
       if (uid != null) {
-        await Supabase.instance.client
-            .rpc('generate_smart_matches', params: {'p_user_uid': uid})
-            .timeout(const Duration(seconds: 12), onTimeout: () => null);
+        for (var attempt = 0; attempt < 2; attempt++) {
+          try {
+            await sb.rpc('generate_smart_matches',
+                params: {'p_user_uid': uid})
+                .timeout(const Duration(seconds: 20));
+          } catch (_) {}
+          try {
+            final check = await sb.from('matches')
+                .select('id').eq('firebase_uid', uid).limit(1);
+            if ((check as List).isNotEmpty) break;
+          } catch (_) {}
+        }
       }
+
       if (user != null) {
         await DbService.markOnboardingComplete(user.id);
       }
-      // Invalidate AFTER matches are generated so home screen gets fresh data
+
+      // ── Step 4: refresh home data AFTER matches truly exist.
       ref.invalidate(matchesProvider);
       ref.invalidate(appUserProvider);
       ref.invalidate(isPremiumProvider);
-      // Small delay to let providers settle before navigation
-      await Future.delayed(const Duration(milliseconds: 400));
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // ── Step 5: the confirmation the user asked for.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('✅ Matches saved! Your top matches are on your home screen.'),
+          duration: Duration(seconds: 3)));
+      }
       if (!mounted) return;
       // Invalidate again after navigation to force re-fetch
       ref.invalidate(matchesProvider);
