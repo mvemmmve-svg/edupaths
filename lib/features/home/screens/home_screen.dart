@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
 import '../../../core/constants/app_constants.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/theme/app_theme.dart';
@@ -174,16 +175,35 @@ class HomeScreen extends ConsumerWidget {
                       padding: const EdgeInsets.all(20),
                       decoration: gradientBox(radius: 20),
                       child: Column(children: [
-                        const CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
-                        const SizedBox(height: 16),
-                        const Text('Finding your perfect careers...',
+                        const Text('🎯', style: TextStyle(fontSize: 32)),
+                        const SizedBox(height: 12),
+                        const Text('Your matches are almost ready',
                           style: TextStyle(fontFamily: 'Nunito', fontSize: 16,
                             fontWeight: FontWeight.w800, color: Colors.white),
                           textAlign: TextAlign.center),
-                        const SizedBox(height: 8),
-                        const Text('Pull down to refresh',
-                          style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
-                            color: Colors.white70)),
+                        const SizedBox(height: 12),
+                        // Active recovery: re-run the matching engine, then
+                        // refresh. Covers cases where generation was
+                        // interrupted during onboarding.
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: AppColors.primary),
+                          onPressed: () async {
+                            final uid = Supabase.instance.client
+                                .auth.currentUser?.id;
+                            if (uid != null) {
+                              try {
+                                await Supabase.instance.client.rpc(
+                                  'generate_smart_matches',
+                                  params: {'p_user_uid': uid});
+                              } catch (_) {}
+                            }
+                            ref.invalidate(matchesProvider);
+                          },
+                          child: const Text('Show my matches',
+                            style: TextStyle(fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w800))),
                       ]));
                   }
                   return const SizedBox();
