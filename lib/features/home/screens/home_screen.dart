@@ -109,12 +109,30 @@ class HomeScreen extends ConsumerWidget {
               Row(children: [
                 GestureDetector(
                   onTap: () => context.push(AppConstants.routeNotifications),
-                  child: Container(width: 40, height: 40,
-                    decoration: BoxDecoration(color: AppColors.bgCard,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.border)),
-                    child: const Icon(Icons.notifications_outlined,
-                      size: 20, color: AppColors.textMid)),
+                  child: Stack(clipBehavior: Clip.none, children: [
+                    Container(width: 40, height: 40,
+                      decoration: BoxDecoration(color: AppColors.bgCard,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.border)),
+                      child: const Icon(Icons.notifications_outlined,
+                        size: 20, color: AppColors.textMid)),
+                    // Red badge = unread support replies waiting
+                    Positioned(right: -4, top: -4,
+                      child: Consumer(builder: (c, r, _) {
+                        final n = r.watch(unreadSupportProvider).valueOrNull ?? 0;
+                        if (n == 0) return const SizedBox();
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.error,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.white, width: 1.5)),
+                          child: Text('$n', style: const TextStyle(
+                            color: Colors.white, fontSize: 10,
+                            fontFamily: 'Nunito', fontWeight: FontWeight.w800)));
+                      })),
+                  ]),
                 ),
                 const SizedBox(width: 8),
                 userAsync.when(
