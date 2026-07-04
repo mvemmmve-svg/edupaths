@@ -334,11 +334,16 @@ class _SummaryState extends ConsumerState<SummaryScreen> {
       }
 
       // ── Step 2: save choices FIRST — matches are generated from these.
+      // Each save is isolated: if one fails (as the preferences save did
+      // for every user until 5 Jul 2026 — missing DB constraint), the
+      // others still land and match generation still runs.
       if (user != null) {
         await Future.wait([
-          DbService.saveUserInterests(user.id, ob.interestIds.toList()),
-          DbService.saveUserTraits(user.id, ob.traitIds.toList()),
-          DbService.savePreferences(ob.prefs),
+          DbService.saveUserInterests(user.id, ob.interestIds.toList())
+              .catchError((_) {}),
+          DbService.saveUserTraits(user.id, ob.traitIds.toList())
+              .catchError((_) {}),
+          DbService.savePreferences(ob.prefs).catchError((_) {}),
         ]);
       }
 
