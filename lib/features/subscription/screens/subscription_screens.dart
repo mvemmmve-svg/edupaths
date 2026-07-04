@@ -37,16 +37,7 @@ const _plans = [
     color: AppColors.primary, badge: 'Most Popular',
     features: ['Unlimited AI matches', 'Full EduBot access', 'Full roadmap builder',
       'University comparisons', 'Application tracker', 'Scholarship alerts',
-      '7-day free trial'],
-    missing: ['Family accounts (3 users)', 'Parent dashboard'],
-  ),
-  _Plan(
-    id: AppConstants.planPremiumPlus, name: 'Premium+', emoji: '👑',
-    monthlyPence: 999, yearlyPence: 7999,
-    color: Color(0xFFB45309), badge: 'Family Plan',
-    features: ['Everything in Premium', 'Family accounts (3 users)',
-      'Parent dashboard', 'Progress reports', 'Scholarship alerts',
-      '7-day free trial'],
+      'Parent dashboard', '7-day free trial'],
     missing: [],
   ),
 ];
