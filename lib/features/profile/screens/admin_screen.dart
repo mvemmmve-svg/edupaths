@@ -504,6 +504,15 @@ class _CoursesTabState extends ConsumerState<_CoursesTab> {
                 (c['title'] as String).toLowerCase().contains(_search.toLowerCase()))
                 .toList();
         return Column(children: [
+          Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: Row(children: [
+              Expanded(child: PrimaryBtn(label: '➕ Import Course',
+                onPressed: () => showImportCourseSheet(context,
+                  () => ref.invalidate(adminCoursesProvider)))),
+              const SizedBox(width: 8),
+              Expanded(child: OutlineBtn(label: '🏛️ Add Institution',
+                onPressed: () => showImportInstitutionSheet(context))),
+            ])),
           Padding(padding: const EdgeInsets.all(12),
             child: TextField(
               onChanged: (v) => setState(() => _search = v),
@@ -757,4 +766,138 @@ class _InfoRow extends StatelessWidget {
       Text(value, style: const TextStyle(fontFamily: 'Nunito',
         fontSize: 11, fontWeight: FontWeight.w700)),
     ]));
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// IMPORT FORMS (item 8) — every field has a hint explaining exactly
+// what to enter, so anyone on the team can add catalogue data safely.
+// ══════════════════════════════════════════════════════════════
+
+Widget _hint(String text) => Padding(
+  padding: const EdgeInsets.only(bottom: 4, top: 12),
+  child: Text(text, style: const TextStyle(fontFamily: 'Nunito',
+    fontSize: 11.5, color: AppColors.textMid, height: 1.3)));
+
+void showImportInstitutionSheet(BuildContext context) {
+  final name = TextEditingController();
+  final city = TextEditingController();
+  showModalBottomSheet(context: context, isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(left: 20, right: 20, top: 20,
+        bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
+      child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Add Institution 🏛️', style: TextStyle(fontFamily: 'Nunito',
+          fontSize: 18, fontWeight: FontWeight.w900)),
+        _hint('Official name of the university, college or training provider — e.g. "University of Manchester". Check spelling: this appears on course cards.'),
+        TextField(controller: name, decoration: const InputDecoration(hintText: 'Institution name *')),
+        _hint('Town or city where the main campus is — e.g. "Manchester".'),
+        TextField(controller: city, decoration: const InputDecoration(hintText: 'City')),
+        const SizedBox(height: 16),
+        StatefulBuilder(builder: (ctx2, setSt) {
+          var saving = false;
+          return PrimaryBtn(label: 'Save Institution', isLoading: saving,
+            onPressed: () async {
+              if (name.text.trim().isEmpty) return;
+              setSt(() => saving = true);
+              try {
+                await Supabase.instance.client.from('institutions')
+                  .insert({'name': name.text.trim(),
+                    if (city.text.trim().isNotEmpty) 'city': city.text.trim()});
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('✅ Institution added')));
+                }
+              } catch (e) {
+                setSt(() => saving = false);
+                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                  content: Text('Could not save: $e')));
+              }
+            });
+        }),
+        const SizedBox(height: 8),
+      ]))));
+}
+
+void showImportCourseSheet(BuildContext context, VoidCallback onSaved) {
+  final title = TextEditingController();
+  final url = TextEditingController();
+  final quals = TextEditingController();
+  final salary = TextEditingController();
+  final duration = TextEditingController();
+  String? instId;
+  showModalBottomSheet(context: context, isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(left: 20, right: 20, top: 20,
+        bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
+      child: StatefulBuilder(builder: (ctx2, setSt) {
+        return SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Import Course 🎓', style: TextStyle(fontFamily: 'Nunito',
+            fontSize: 18, fontWeight: FontWeight.w900)),
+          _hint('Full course title including the qualification level — e.g. "BSc Computer Science" or "Level 6 Digital Marketing Apprenticeship".'),
+          TextField(controller: title, decoration: const InputDecoration(hintText: 'Course title *')),
+          _hint('Which institution runs it? If it is missing, close this and use "Add Institution" first.'),
+          FutureBuilder(
+            future: Supabase.instance.client.from('institutions')
+              .select('id, name').order('name'),
+            builder: (c, snap) {
+              final items = (snap.data as List? ?? [])
+                .cast<Map<String, dynamic>>();
+              return DropdownButtonFormField<String>(
+                value: instId,
+                isExpanded: true,
+                hint: const Text('Select institution *'),
+                items: [for (final i in items)
+                  DropdownMenuItem(value: i['id'].toString(),
+                    child: Text(i['name'].toString(), overflow: TextOverflow.ellipsis))],
+                onChanged: (v) => setSt(() => instId = v));
+            }),
+          _hint('The OFFICIAL course page link, starting with https:// — always copy it from the institution\'s own website, never from a listings site. Year-stamped links (e.g. /2025/) break every year; prefer links without a year if offered.'),
+          TextField(controller: url, decoration: const InputDecoration(hintText: 'https://... *')),
+          _hint('Entry requirements in plain words — e.g. "AAB at A-Level including Maths" or "5 GCSEs grade 4+ including English and Maths".'),
+          TextField(controller: quals, decoration: const InputDecoration(hintText: 'Qualifications needed')),
+          _hint('Typical starting salary AFTER completing, numbers only in pounds — e.g. 28000. Leave blank if unknown.'),
+          TextField(controller: salary, keyboardType: TextInputType.number,
+            decoration: const InputDecoration(hintText: 'Starting salary (£)')),
+          _hint('How long the course runs — e.g. "3 years" or "18 months".'),
+          TextField(controller: duration, decoration: const InputDecoration(hintText: 'Duration')),
+          const SizedBox(height: 16),
+          PrimaryBtn(label: 'Save Course', onPressed: () async {
+            if (title.text.trim().isEmpty || url.text.trim().isEmpty || instId == null) {
+              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                content: Text('Title, institution and URL are required.')));
+              return;
+            }
+            var u = url.text.trim();
+            if (!u.startsWith('http')) u = 'https://$u';
+            try {
+              await Supabase.instance.client.from('courses').insert({
+                'title': title.text.trim(),
+                'institution_id': instId,
+                'url': u,
+                if (quals.text.trim().isNotEmpty) 'entry_requirements': quals.text.trim(),
+                if (salary.text.trim().isNotEmpty) 'starting_salary': int.tryParse(salary.text.trim()),
+                if (duration.text.trim().isNotEmpty) 'duration': duration.text.trim(),
+              });
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+                onSaved();
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('✅ Course imported')));
+              }
+            } catch (e) {
+              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                content: Text('Could not save: $e')));
+            }
+          }),
+          const SizedBox(height: 8),
+        ]));
+      })));
 }
