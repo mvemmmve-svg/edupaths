@@ -107,33 +107,74 @@ FORMATTING:
         'content': m.content,
       }).toList();
 
-      final response = await http.post(
-        Uri.parse('https://api.anthropic.com/v1/messages'),
-        headers: {
-          'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01',
-        },
-        body: jsonEncode({
-          'model': 'claude-sonnet-4-20250514',
-          'max_tokens': 1000,
-          'system': _buildSystemPrompt(user, matches),
-          'messages': history,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final reply = (data['content'] as List)
-            .firstWhere((c) => c['type'] == 'text',
-                orElse: () => {'text': 'Sorry, I could not generate a response.'})
-            ['text'] as String;
-
+      // SECURITY: the AI is called via our own Netlify function
+      // (/api/edubot), never directly — the Anthropic key lives only on
+      // the server. We authenticate with the user's Supabase session.
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session == null) {
         setState(() {
-          _messages.add(_Message(
-              role: 'assistant', content: reply, time: DateTime.now()));
+          _messages.add(_Message(role: 'assistant',
+            content: 'Please log in to chat with EduBot 😊',
+            time: DateTime.now()));
         });
+        return;
+      }
+
+      final req = http.Request('POST', Uri.base.resolve('/api/edubot'))
+        ..headers['Content-Type'] = 'application/json'
+        ..headers['Authorization'] = 'Bearer ${session.accessToken}'
+        ..body = jsonEncode({'messages': history});
+
+      final streamed = await req.send();
+
+      if (streamed.statusCode == 200) {
+        // Server streams Anthropic SSE events; accumulate the text deltas
+        // and update the last bubble live as tokens arrive.
+        setState(() => _messages.add(
+            _Message(role: 'assistant', content: '', time: DateTime.now())));
+        var buffer = '';
+        await for (final chunk
+            in streamed.stream.transform(const Utf8Decoder())) {
+          for (final line in chunk.split('\n')) {
+            if (!line.startsWith('data:')) continue;
+            final payload = line.substring(5).trim();
+            if (payload.isEmpty || payload == '[DONE]') continue;
+            try {
+              final evt = jsonDecode(payload);
+              final delta = evt['delta'];
+              if (delta is Map && delta['type'] == 'text_delta') {
+                buffer += delta['text'] as String;
+                setState(() => _messages.last = _Message(
+                    role: 'assistant', content: buffer,
+                    time: _messages.last.time));
+                _scrollToBottom();
+              }
+            } catch (_) {/* ignore non-JSON keep-alives */}
+          }
+        }
+        if (buffer.isEmpty) {
+          setState(() => _messages.last = _Message(role: 'assistant',
+              content: 'Sorry, I could not generate a response. Please try again.',
+              time: _messages.last.time));
+        }
+      } else if (streamed.statusCode == 429) {
+        final body = await streamed.stream.bytesToString();
+        String msg =
+            "You've reached your EduBot limit for now. Free accounts get 5 messages a day — upgrade to Premium for much more! ⭐";
+        try {
+          final j = jsonDecode(body);
+          if (j['tier'] == 'premium') {
+            msg = "You've reached the hourly message limit. Please try again in a little while.";
+          }
+        } catch (_) {}
+        setState(() => _messages.add(_Message(
+            role: 'assistant', content: msg, time: DateTime.now())));
+      } else if (streamed.statusCode == 401) {
+        setState(() => _messages.add(_Message(role: 'assistant',
+            content: 'Please log in to chat with EduBot 😊',
+            time: DateTime.now())));
       } else {
-        throw Exception('API error: ${response.statusCode}');
+        throw Exception('API error: ${streamed.statusCode}');
       }
     } catch (e) {
       setState(() {
