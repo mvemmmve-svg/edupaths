@@ -14,6 +14,7 @@ import '../../features/roadmap/screens/roadmap_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
 import '../../features/edubot/screens/edubot_screen.dart';
 import '../../features/support/screens/support_screens.dart';
+import '../../features/discover/screens/discover_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/profile/screens/admin_screen.dart';
 import '../../features/notifications/screens/notifications_screen.dart';
@@ -24,7 +25,7 @@ import '../../shared/widgets/main_shell.dart';
 
 // Routes that require login — EXACT matches only
 const _loginRequired = {
-  '/saved', '/edubot', '/roadmap-plan', '/support', '/admin-inbox',
+  '/saved', '/edubot', '/roadmap-plan', '/support', '/admin-inbox', '/discover',
   '/notifications', '/who-are-you', '/checkout', '/parent', '/admin',
 };
 
@@ -124,6 +125,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Admin ──────────────────────────────────────────────
       GoRoute(path: '/school-advisor',
         builder: (c, s) => const SchoolAdvisorScreen()),
+      GoRoute(path: '/discover',
+        builder: (c, s) => const DiscoverScreen()),
       GoRoute(path: '/support',
         builder: (c, s) => const SupportThreadScreen()),
       GoRoute(path: '/admin-inbox',
