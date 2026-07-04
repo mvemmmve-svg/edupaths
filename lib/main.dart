@@ -56,7 +56,11 @@ class EduPathsApp extends ConsumerWidget {
       title: AppConstants.appName,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: themeMode,
+      // Dark mode is temporarily disabled: most screens use fixed light
+      // colors, so enabling the dark theme produced an inconsistent
+      // half-dark UI. Re-enable (themeMode: themeMode) once the screens
+      // are made theme-aware.
+      themeMode: ThemeMode.light,
       routerConfig: _cachedRouter!,
       debugShowCheckedModeBanner: false,
     );
