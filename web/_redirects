@@ -1,3 +1,2 @@
-/.netlify/functions/*  /.netlify/functions/:splat  200
 /api/edubot            /.netlify/functions/edubot  200
 /*                     /index.html                 200
