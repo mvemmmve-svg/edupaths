@@ -1,5 +1,6 @@
 // lib/features/auth/screens/auth_screens.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,26 +21,29 @@ class SplashScreen extends StatelessWidget {
       body: Container(
         decoration: gradientBox(radius: 0,
           colors: [const Color(0xFF3D33C7), AppColors.primary, AppColors.primaryLight]),
-        child: SafeArea(child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(children: [
-            const Spacer(),
-            Container(width: 72, height: 72,
+        // Scrollable + centred on tall screens, scrolls on short screens —
+        // the buttons can never be pushed off the bottom again.
+        child: SafeArea(child: Center(child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 60, height: 60,
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: Colors.white.withOpacity(0.3), width: 2)),
-              child: const Icon(Icons.school_rounded, size: 40, color: Colors.white)),
-            const SizedBox(height: 16),
+              child: const Icon(Icons.school_rounded, size: 34, color: Colors.white)),
+            const SizedBox(height: 12),
             const Text('EduPaths', style: TextStyle(
-              fontFamily: 'Nunito', fontSize: 38, fontWeight: FontWeight.w900,
+              fontFamily: 'Nunito', fontSize: 34, fontWeight: FontWeight.w900,
               color: Colors.white, letterSpacing: -1)),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(AppConstants.appTagline,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 15, color: Colors.white.withOpacity(0.8),
+              style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8),
                 fontFamily: 'Nunito', fontWeight: FontWeight.w600, height: 1.4)),
-            const SizedBox(height: 24),
+            const SizedBox(height: 18),
             // ── How it works — a clear 4-step explainer instead of an
             //    empty blue screen (user request, item 2) ──────────────
             const _HowItWorksStep(emoji: '🎯', number: '1',
@@ -54,7 +58,7 @@ class SplashScreen extends StatelessWidget {
             const _HowItWorksStep(emoji: '🤖', number: '4',
               title: 'Ask EduBot anything',
               subtitle: 'Your AI guide for every education question, any time.'),
-            const Spacer(),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () => context.push(AppConstants.routeWelcome),
               style: ElevatedButton.styleFrom(
@@ -78,12 +82,14 @@ class SplashScreen extends StatelessWidget {
             const SizedBox(height: 12),
             TextButton(
               onPressed: () => context.go(AppConstants.routeHome),
+              style: TextButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48)),
               child: Text('Continue as Guest',
-                style: TextStyle(color: Colors.white.withOpacity(0.7),
-                  fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w600))),
-            const SizedBox(height: 8),
+                style: TextStyle(color: Colors.white.withOpacity(0.85),
+                  fontFamily: 'Nunito', fontSize: 15, fontWeight: FontWeight.w700))),
           ]),
-        )),
+          ),
+        ))),
       ),
     );
   }
@@ -249,7 +255,8 @@ class _SignupScreenState extends State<SignupScreen> {
           ],
           _Field(ctrl: _nameCtrl, hint: 'Full Name *', icon: Icons.person_outline),
           const SizedBox(height: 12),
-          _Field(ctrl: _emailCtrl, hint: 'Email address *',
+          _Field(autofillHints: const [AutofillHints.username, AutofillHints.email],
+            ctrl: _emailCtrl, hint: 'Email address *',
             icon: Icons.mail_outline, keyboard: TextInputType.emailAddress),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
@@ -265,7 +272,8 @@ class _SignupScreenState extends State<SignupScreen> {
             items: _years.map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),
             onChanged: (v) => setState(() => _schoolYear = v)),
           const SizedBox(height: 12),
-          _PassField(ctrl: _passCtrl, hint: 'Password *',
+          _PassField(autofillHints: const [AutofillHints.newPassword],
+            ctrl: _passCtrl, hint: 'Password *',
             obscure: _obscure, onToggle: () => setState(() => _obscure = !_obscure)),
           const Padding(
             padding: EdgeInsets.only(top: 6, left: 4),
@@ -353,6 +361,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await Future.delayed(const Duration(milliseconds: 200));
       if (!mounted) return;
       // Admins always go straight to home — bypass WhoAreYou
+      // Prompts the browser/phone to save or update the password
+      TextInput.finishAutofillContext();
       final isAdmin = res.user?.isAdmin ?? false;
       final done = res.user?.onboardingComplete ?? false;
       if (isAdmin || done) {
@@ -394,12 +404,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ])),
             const SizedBox(height: 16),
           ],
-          _Field(ctrl: _emailCtrl, hint: 'Email address',
-            icon: Icons.mail_outline, keyboard: TextInputType.emailAddress),
-          const SizedBox(height: 12),
-          _PassField(ctrl: _passCtrl, hint: 'Password',
-            obscure: _obscure, onToggle: () => setState(() => _obscure = !_obscure),
-            onSubmit: _login),
+          // AutofillGroup + hints let phones/browsers offer saved logins
+          // and prompt to save new ones.
+          AutofillGroup(child: Column(children: [
+            _Field(ctrl: _emailCtrl, hint: 'Email address',
+              icon: Icons.mail_outline, keyboard: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.username, AutofillHints.email]),
+            const SizedBox(height: 12),
+            _PassField(ctrl: _passCtrl, hint: 'Password',
+              obscure: _obscure, onToggle: () => setState(() => _obscure = !_obscure),
+              onSubmit: _login,
+              autofillHints: const [AutofillHints.password]),
+          ])),
           const SizedBox(height: 8),
           Align(alignment: Alignment.centerRight,
             child: TextButton(
@@ -579,11 +595,14 @@ class _Field extends StatelessWidget {
   final String hint;
   final IconData icon;
   final TextInputType? keyboard;
+  final Iterable<String>? autofillHints;
   const _Field({required this.ctrl, required this.hint,
-    required this.icon, this.keyboard});
+    required this.icon, this.keyboard, this.autofillHints});
   @override
   Widget build(BuildContext context) => TextFormField(
     controller: ctrl, keyboardType: keyboard,
+    // Lets phones and browsers offer saved emails/usernames
+    autofillHints: autofillHints,
     decoration: InputDecoration(hintText: hint,
       prefixIcon: Icon(icon, size: 20)));
 }
@@ -594,11 +613,14 @@ class _PassField extends StatelessWidget {
   final bool obscure;
   final VoidCallback? onToggle;
   final VoidCallback? onSubmit;
+  final Iterable<String>? autofillHints;
   const _PassField({required this.ctrl, required this.hint,
-    required this.obscure, this.onToggle, this.onSubmit});
+    required this.obscure, this.onToggle, this.onSubmit, this.autofillHints});
   @override
   Widget build(BuildContext context) => TextFormField(
     controller: ctrl, obscureText: obscure,
+    // Lets phones and browsers offer saved passwords
+    autofillHints: autofillHints,
     onFieldSubmitted: (_) => onSubmit?.call(),
     textInputAction: onSubmit != null ? TextInputAction.done : TextInputAction.next,
     decoration: InputDecoration(hintText: hint,
@@ -617,9 +639,9 @@ class _HowItWorksStep extends StatelessWidget {
     required this.title, required this.subtitle});
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.only(bottom: 8),
     child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.12),
         borderRadius: BorderRadius.circular(14),
