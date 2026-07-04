@@ -29,6 +29,17 @@ class MainShell extends StatelessWidget {
 
   void _go(BuildContext ctx, int i) => ctx.go(_routes[i]);
 
+  /// Floating EduBot launcher — visible on every main screen (item 3).
+  Widget? _edubotFab(BuildContext context, String loc) {
+    if (loc.startsWith('/edubot')) return null; // not on the chat itself
+    return FloatingActionButton(
+      onPressed: () => context.push(AppConstants.routeEduBot),
+      backgroundColor: AppColors.primary,
+      tooltip: 'Ask EduBot',
+      child: const Text('🤖', style: TextStyle(fontSize: 24)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final loc = GoRouterState.of(context).matchedLocation;
@@ -37,6 +48,7 @@ class MainShell extends StatelessWidget {
     if (Responsive.isDesktop(context) || Responsive.isTablet(context)) {
       // ── Sidebar navigation for tablet/desktop ──
       return Scaffold(
+        floatingActionButton: _edubotFab(context, loc),
         body: Row(children: [
           NavigationRail(
             backgroundColor: AppColors.bgCard,
@@ -84,6 +96,7 @@ class MainShell extends StatelessWidget {
     // ── Bottom navigation for mobile ──
     return Scaffold(
       body: child,
+      floatingActionButton: _edubotFab(context, loc),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: AppColors.bgCard,
