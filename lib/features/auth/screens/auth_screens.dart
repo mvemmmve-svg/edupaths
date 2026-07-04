@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
+import '../../../core/services/db_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
@@ -364,7 +365,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Prompts the browser/phone to save or update the password
       TextInput.finishAutofillContext();
       final isAdmin = res.user?.isAdmin ?? false;
-      final done = res.user?.onboardingComplete ?? false;
+      var done = res.user?.onboardingComplete ?? false;
+      // Self-heal: an account with matches or saved interests has clearly
+      // been through onboarding — if its flag is stale (a historical bug
+      // left some accounts marked incomplete), repair it and skip the
+      // "Who are you?" screen. Existing users must never see it twice.
+      if (!done && !isAdmin && res.user != null) {
+        try {
+          final sb = Supabase.instance.client;
+          final uid = sb.auth.currentUser?.id;
+          final m = uid == null ? [] : await sb.from('matches')
+              .select('id').eq('firebase_uid', uid).limit(1);
+          final i = await sb.from('user_interest')
+              .select('user_id').eq('user_id', res.user!.id).limit(1);
+          if ((m as List).isNotEmpty || (i as List).isNotEmpty) {
+            done = true;
+            await DbService.markOnboardingComplete(res.user!.id);
+            ref.invalidate(appUserProvider);
+          }
+        } catch (_) {}
+      }
       if (isAdmin || done) {
         context.go(AppConstants.routeHome);
       } else {
