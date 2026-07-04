@@ -127,7 +127,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (c, s) => AltRoutesScreen(
           careerId: s.pathParameters['id']!)),
       GoRoute(path: AppConstants.routeCompare,
-        builder: (c, s) => const CompareScreen()),
+        builder: (c, s) => CompareScreen(
+          careerId: s.uri.queryParameters['career'])),
       GoRoute(path: '/why-match/:id',
         builder: (c, s) => WhyMatchScreen(
           careerId: s.pathParameters['id']!)),
