@@ -405,6 +405,11 @@ class HomeScreen extends ConsumerWidget {
             // ── Browse Categories ────────────────────
             const SectionHeader(title: 'Browse by Category'),
             const SizedBox(height: 12),
+            // Premium-only: free users see an upgrade card instead
+            if (ref.watch(isPremiumProvider).valueOrNull != true)
+              const PremiumLock(title: 'Browse by Category',
+                subtitle: 'Explore careers by field — Premium only.')
+            else
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(children: [
