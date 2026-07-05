@@ -98,7 +98,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: AppConstants.routeOnboardingStart,
         builder: (c, s) => const OnboardingStartScreen()),
       GoRoute(path: AppConstants.routeOnboardingInterests,
-        builder: (c, s) => const InterestsScreen()),
+        builder: (c, s) => const ThisOrThatScreen()),
       GoRoute(path: AppConstants.routeOnboardingEnjoy,
         builder: (c, s) => const EnjoyScreen()),
       GoRoute(path: AppConstants.routeOnboardingPrefs,

@@ -93,79 +93,92 @@ class HomeScreen extends ConsumerWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
             // ── Header ───────────────────────────────
+            // One row, everything vertically centred. The greeting flexes
+            // and ellipsises; the streak pill, bell and avatar are ALL
+            // exactly 40px tall so nothing sits off-baseline, and they
+            // never get pushed off-screen on small phones (iPhone SE etc).
             const SizedBox(height: 16),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              userAsync.when(
-                loading: () => const ShimmerCard(height: 50),
-                error: (_, __) => const SizedBox(),
-                data: (user) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Hi, ${user?.firstName ?? 'Explorer'}! 👋',
-                    style: const TextStyle(fontFamily: 'Nunito', fontSize: 14,
-                      color: AppColors.textMid, fontWeight: FontWeight.w600)),
-                  Row(children: [
-                    Flexible(child: Text("Let's explore your future.",
-                      style: Theme.of(context).textTheme.headlineMedium)),
-                    const SizedBox(width: 8),
-                    // 🔥 streak chip — consecutive days in the app
-                    Consumer(builder: (c, r, _) {
-                      final n = r.watch(streakProvider).valueOrNull ?? 0;
-                      if (n < 2) return const SizedBox();
+            Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+              Expanded(child: userAsync.when(
+                loading: () => const ShimmerCard(height: 44),
+                error: (_, __) => const SizedBox(height: 44),
+                data: (user) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Hi, ${user?.firstName ?? 'Explorer'}! 👋',
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontFamily: 'Nunito', fontSize: 14,
+                        color: AppColors.textMid, fontWeight: FontWeight.w600)),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text("Let's explore your future.",
+                        maxLines: 1,
+                        style: Theme.of(context).textTheme.headlineMedium)),
+                  ]),
+              )),
+              const SizedBox(width: 12),
+              // 🔥 streak chip — consecutive days in the app
+              Consumer(builder: (c, r, _) {
+                final n = r.watch(streakProvider).valueOrNull ?? 0;
+                if (n < 2) return const SizedBox();
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Container(
+                    height: 40,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.accentOrange.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.accentOrange.withOpacity(0.4))),
+                    child: Text('🔥 $n', style: const TextStyle(
+                      fontFamily: 'Nunito', fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.accentOrange))));
+              }),
+              GestureDetector(
+                onTap: () => context.push(AppConstants.routeNotifications),
+                child: Stack(clipBehavior: Clip.none, children: [
+                  Container(width: 40, height: 40,
+                    decoration: BoxDecoration(color: AppColors.bgCard,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border)),
+                    child: const Icon(Icons.notifications_outlined,
+                      size: 20, color: AppColors.textMid)),
+                  // Red badge = unread support replies waiting
+                  Positioned(right: -4, top: -4,
+                    child: Consumer(builder: (c, r, _) {
+                      final n = r.watch(unreadSupportProvider).valueOrNull ?? 0;
+                      if (n == 0) return const SizedBox();
                       return Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                          horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.accentOrange.withOpacity(0.12),
+                          color: AppColors.error,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: AppColors.accentOrange.withOpacity(0.4))),
-                        child: Text('🔥 $n', style: const TextStyle(
-                          fontFamily: 'Nunito', fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.accentOrange)));
-                    }),
-                  ]),
+                          border: Border.all(color: Colors.white, width: 1.5)),
+                        child: Text('$n', style: const TextStyle(
+                          color: Colors.white, fontSize: 10,
+                          fontFamily: 'Nunito', fontWeight: FontWeight.w800)));
+                    })),
                 ]),
               ),
-              Row(children: [
-                GestureDetector(
-                  onTap: () => context.push(AppConstants.routeNotifications),
-                  child: Stack(clipBehavior: Clip.none, children: [
-                    Container(width: 40, height: 40,
-                      decoration: BoxDecoration(color: AppColors.bgCard,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.border)),
-                      child: const Icon(Icons.notifications_outlined,
-                        size: 20, color: AppColors.textMid)),
-                    // Red badge = unread support replies waiting
-                    Positioned(right: -4, top: -4,
-                      child: Consumer(builder: (c, r, _) {
-                        final n = r.watch(unreadSupportProvider).valueOrNull ?? 0;
-                        if (n == 0) return const SizedBox();
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.error,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.white, width: 1.5)),
-                          child: Text('$n', style: const TextStyle(
-                            color: Colors.white, fontSize: 10,
-                            fontFamily: 'Nunito', fontWeight: FontWeight.w800)));
-                      })),
-                  ]),
-                ),
-                const SizedBox(width: 8),
-                userAsync.when(
-                  loading: () => const CircleAvatar(radius: 20, backgroundColor: AppColors.primaryPale),
-                  error: (_, __) => const SizedBox(),
-                  data: (user) => GestureDetector(
-                    onTap: () => context.go(AppConstants.routeProfile),
-                    child: CircleAvatar(radius: 20, backgroundColor: AppColors.primary,
+              const SizedBox(width: 8),
+              userAsync.when(
+                loading: () => const SizedBox(width: 40, height: 40,
+                  child: CircleAvatar(backgroundColor: AppColors.primaryPale)),
+                error: (_, __) => const SizedBox(width: 40, height: 40),
+                data: (user) => GestureDetector(
+                  onTap: () => context.go(AppConstants.routeProfile),
+                  child: SizedBox(width: 40, height: 40,
+                    child: CircleAvatar(backgroundColor: AppColors.primary,
                       child: Text(user?.initials ?? 'E',
-                        style: const TextStyle(fontFamily: 'Nunito',
-                          color: Colors.white, fontWeight: FontWeight.w800)))),
-                ),
-              ]),
+                        style: const TextStyle(fontFamily: 'Nunito', fontSize: 14,
+                          color: Colors.white, fontWeight: FontWeight.w800))))),
+              ),
             ]),
 
             const SizedBox(height: 16),
@@ -339,6 +352,16 @@ class HomeScreen extends ConsumerWidget {
                       Text(top.avgSalary != null ? 'Avg: ${top.avgSalary}' : 'Explore this career',
                         style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
                           color: Colors.white.withOpacity(0.75))),
+                      const SizedBox(height: 8),
+                      // Why we matched you — right on the card
+                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('✨ ', style: TextStyle(fontSize: 12)),
+                        Flexible(child: Text(friendlyMatchReason(top.matchReason),
+                          maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontFamily: 'Nunito',
+                            fontSize: 12, fontWeight: FontWeight.w700,
+                            color: Colors.white, height: 1.35))),
+                      ]),
                       const SizedBox(height: 14),
                       Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
                         decoration: BoxDecoration(
@@ -358,9 +381,8 @@ class HomeScreen extends ConsumerWidget {
 
             // ── Top Matches ──────────────────────────
             SectionHeader(title: 'Top Matches for You',
-              action: isPrem ? 'See all' : '🔒 Premium', onAction: isPrem
-                ? () => _showAllMatches(context, ref)
-                : () => context.push(AppConstants.routePricing)),
+              action: 'See all',
+              onAction: () => _showAllMatches(context, ref)),
             const SizedBox(height: 12),
             matchesAsync.when(
               loading: () => Column(children: const [
@@ -379,21 +401,26 @@ class HomeScreen extends ConsumerWidget {
                   return Padding(padding: const EdgeInsets.only(bottom: 10),
                     child: EduCard(
                       onTap: () => context.push('/pathway/${m.careerId}'),
-                      child: Row(children: [
-                        Container(width: 48, height: 48,
-                          decoration: BoxDecoration(color: AppColors.primaryPale,
-                            borderRadius: BorderRadius.circular(14)),
-                          child: const Icon(Icons.work_rounded, color: AppColors.primary, size: 24)),
-                        const SizedBox(width: 14),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                          Text(m.careerName, style: const TextStyle(
-                            fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w800)),
-                          if (m.avgSalary != null) Text('Avg: ${m.avgSalary}',
-                            style: const TextStyle(fontFamily: 'Nunito',
-                              fontSize: 12, color: AppColors.textMid)),
-                        ])),
-                        MatchRing(pct: m.matchScore),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                        Row(children: [
+                          Container(width: 48, height: 48,
+                            decoration: BoxDecoration(color: AppColors.primaryPale,
+                              borderRadius: BorderRadius.circular(14)),
+                            child: const Icon(Icons.work_rounded, color: AppColors.primary, size: 24)),
+                          const SizedBox(width: 14),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                            Text(m.careerName, style: const TextStyle(
+                              fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w800)),
+                            if (m.avgSalary != null) Text('Avg: ${m.avgSalary}',
+                              style: const TextStyle(fontFamily: 'Nunito',
+                                fontSize: 12, color: AppColors.textMid)),
+                          ])),
+                          MatchRing(pct: m.matchScore),
+                        ]),
+                        // Why we matched you — tap for the full breakdown
+                        MatchReasonLine(reason: m.matchReason, careerId: m.careerId),
                       ]),
                     ));
                 }).toList());
@@ -403,13 +430,10 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(height: 24),
 
             // ── Browse Categories ────────────────────
+            // Browsing is FREE — the hook comes first, the paywall sits on
+            // deeper features (compare, unlimited saves, full roadmap).
             const SectionHeader(title: 'Browse by Category'),
             const SizedBox(height: 12),
-            // Premium-only: free users see an upgrade card instead
-            if (ref.watch(isPremiumProvider).valueOrNull != true)
-              const PremiumLock(title: 'Browse by Category',
-                subtitle: 'Explore careers by field — Premium only.')
-            else
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(children: [
@@ -442,9 +466,8 @@ class HomeScreen extends ConsumerWidget {
 
             // ── All Careers ──────────────────────────
             SectionHeader(title: 'All Careers',
-              action: isPrem ? 'See all' : '🔒 Premium', onAction: isPrem
-                ? () => _showAllMatches(context, ref)
-                : () => context.push(AppConstants.routePricing)),
+              action: 'See all',
+              onAction: () => context.go(AppConstants.routeExplore)),
             const SizedBox(height: 12),
             careersAsync.when(
               loading: () => const ShimmerCard(),

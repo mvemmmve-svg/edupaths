@@ -99,11 +99,22 @@ class _DiscoverState extends ConsumerState<DiscoverScreen>
         'verdict': like ? 'like' : 'skip',
       });
       if (like) {
-        // A like also bookmarks the career so it appears in Saved
-        await DbService.saveItem(
-            itemType: 'career', itemId: career.id,
-            title: career.displayName, subtitle: career.category);
-        ref.invalidate(savedItemsProvider);
+        // A like also bookmarks the career so it appears in Saved —
+        // but free accounts cap at kFreeSaveLimit saves.
+        final isPrem = ref.read(isPremiumProvider).valueOrNull ?? false;
+        final savedCount =
+            (ref.read(savedItemsProvider).valueOrNull ?? const []).length;
+        if (isPrem || savedCount < kFreeSaveLimit) {
+          await DbService.saveItem(
+              itemType: 'career', itemId: career.id,
+              title: career.displayName, subtitle: career.category);
+          ref.invalidate(savedItemsProvider);
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+              '❤️ Liked! Your Saved list is full — Premium = unlimited saves'),
+            duration: Duration(seconds: 2)));
+        }
       }
     } catch (_) {}
   }

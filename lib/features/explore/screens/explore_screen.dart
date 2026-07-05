@@ -37,32 +37,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Explore is a Premium feature: free-tier users see an upgrade
-    // prompt instead of the catalogue (admins always have access).
-    if (ref.watch(isPremiumProvider).valueOrNull != true) {
-      return Scaffold(
-        backgroundColor: AppColors.bgPage,
-        body: SafeArea(child: Center(child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('🔒', style: TextStyle(fontSize: 52)),
-            const SizedBox(height: 16),
-            const Text('Explore is a Premium feature',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontFamily: 'Nunito', fontSize: 20,
-                fontWeight: FontWeight.w900, color: AppColors.textDark)),
-            const SizedBox(height: 8),
-            const Text(
-              'Unlock the full catalogue of careers, courses and universities with Premium.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontFamily: 'Nunito', fontSize: 14,
-                color: AppColors.textMid, height: 1.45)),
-            const SizedBox(height: 20),
-            PrimaryBtn(label: 'Upgrade to Premium ⭐',
-              onPressed: () => context.push(AppConstants.routePricing)),
-          ]),
-        ))));
-    }
+    // Explore is FREE to browse — search, career summaries and course
+    // listings hook users in. Premium gates the deeper features instead:
+    // route comparison, unlimited saves, detailed roadmaps.
     final careersAsync = ref.watch(filteredCareersProvider);
     final coursesAsync = ref.watch(coursesProvider);
     final query = ref.watch(searchQueryProvider);

@@ -1,6 +1,7 @@
 // lib/features/onboarding/screens/onboarding_screens.dart
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -35,9 +36,8 @@ class OnboardingStartScreen extends ConsumerWidget {
           const SizedBox(height: 32),
           // Steps — no chevron arrows
           ...[
-            ('🎮', 'Choose your interests', '30 seconds'),
+            ('⚡', '"This or That" quiz', '30 seconds — no wrong answers'),
             ('⭐', 'What do you enjoy?', '20 seconds'),
-            // Prefs step removed
             ('🤖', 'AI builds your profile', 'Instant!'),
           ].map((s) => Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -68,93 +68,255 @@ class OnboardingStartScreen extends ConsumerWidget {
 }
 
 // ══════════════════════════════════════════════
-// INTERESTS SCREEN
+// "THIS OR THAT" QUIZ — replaces the checkbox interests screen.
+// 8 quick either/or picks. Each answer carries hidden interest tags;
+// at the end we infer the user's interests and feed them into the
+// same matching pipeline as before. Feels like a game, not a form.
 // ══════════════════════════════════════════════
-class InterestsScreen extends ConsumerWidget {
-  const InterestsScreen({super.key});
 
-  static const _emojis = {
-    'Gaming': '🎮', 'Technology': '💻', 'Art & Design': '🎨',
-    'Music': '🎵', 'Sport': '⚽', 'Health': '💊',
-    'Science': '🔬', 'Fashion': '👗', 'Business': '💼',
-    'Film': '🎬', 'Psychology': '🧠', 'Engineering': '⚙️',
-    'Data & Analytics': '📊', 'Education': '📚', 'Law': '⚖️',
-    'Web Development': '🌐', 'Mobile Apps': '📱', 'Robotics': '🤖',
-    'Machine Learning': '🧬', 'Finance & Investment': '💰',
-    'Entrepreneurship': '🚀', 'Marketing & Advertising': '📣',
-    'Architecture & Design': '🏛️', 'Creative Writing': '✍️',
-    'Animation & VFX': '🎬', 'Mental Health': '💚',
-    'Nursing & Care': '🏥', 'Fitness & Personal Training': '🏋️',
-    'Environmental Science': '🌿', 'Maths & Statistics': '📐',
-    'Medicine': '⚕️', 'Politics & Policy': '🏛️',
-    'Journalism & Media': '📰', 'Construction & Trades': '🔨',
-    'Languages & Linguistics': '🗣️', 'Computer Science': '💻',
-    'Cybersecurity': '🔐', 'Artificial Intelligence': '🤖',
-    'Data Science': '📊', 'Healthcare': '🏥',
-  };
+class _QOption {
+  final String emoji, label;
+  final List<String> tags; // interest names as stored in the DB
+  const _QOption(this.emoji, this.label, this.tags);
+}
+
+class _Q {
+  final String prompt;
+  final _QOption a, b;
+  final String? prefKey, prefA, prefB;
+  const _Q(this.prompt, this.a, this.b, {this.prefKey, this.prefA, this.prefB});
+}
+
+const _quiz = <_Q>[
+  _Q('Where would you rather spend the day?',
+    _QOption('🛋️', 'Indoors', ['Technology', 'Gaming', 'Creative Writing']),
+    _QOption('🌲', 'Outdoors', ['Environmental Science', 'Sport', 'Construction & Trades']),
+    prefKey: 'environment', prefA: 'Indoor', prefB: 'Outdoor'),
+  _Q('What sounds more fun to work with?',
+    _QOption('🗣️', 'People', ['Psychology', 'Education', 'Healthcare']),
+    _QOption('💻', 'Computers', ['Computer Science', 'Technology', 'Web Development'])),
+  _Q('Your brain at its best is…',
+    _QOption('🎨', 'Creative', ['Art & Design', 'Creative Writing', 'Music']),
+    _QOption('📊', 'Analytical', ['Maths & Statistics', 'Data & Analytics', 'Science'])),
+  _Q('In a group project, you’d rather be…',
+    _QOption('📣', 'Leading the team', ['Business', 'Entrepreneurship', 'Marketing & Advertising']),
+    _QOption('🔧', 'Building the thing', ['Engineering', 'Robotics', 'Construction & Trades'])),
+  _Q('Which feels like a bigger win?',
+    _QOption('💚', 'Helping someone', ['Nursing & Care', 'Mental Health', 'Medicine']),
+    _QOption('🧩', 'Cracking a hard puzzle', ['Cybersecurity', 'Maths & Statistics', 'Computer Science'])),
+  _Q('Pick your superpower:',
+    _QOption('✍️', 'A way with words', ['Journalism & Media', 'Creative Writing', 'Law']),
+    _QOption('📐', 'A head for numbers', ['Finance & Investment', 'Data Science', 'Maths & Statistics'])),
+  _Q('Where do you belong?',
+    _QOption('🎤', 'In the spotlight', ['Film', 'Music', 'Politics & Policy']),
+    _QOption('🎬', 'Behind the scenes', ['Animation & VFX', 'Engineering', 'Data & Analytics'])),
+  _Q('What gets you out of bed?',
+    _QOption('💡', 'Big new ideas', ['Entrepreneurship', 'Artificial Intelligence', 'Science']),
+    _QOption('🔍', 'Getting details perfect', ['Law', 'Architecture & Design', 'Data & Analytics'])),
+];
+
+class ThisOrThatScreen extends ConsumerStatefulWidget {
+  const ThisOrThatScreen({super.key});
+  @override
+  ConsumerState<ThisOrThatScreen> createState() => _ThisOrThatState();
+}
+
+class _ThisOrThatState extends ConsumerState<ThisOrThatScreen> {
+  int _index = 0;
+  int _selected = -1; // 0 = option A, 1 = option B, -1 = none
+  bool _advancing = false;
+  final Map<String, int> _scores = {};
+  final List<String> _picks = [];
+  final Map<String, String> _prefs = {};
+
+  Future<void> _choose(int side) async {
+    if (_advancing) return;
+    _advancing = true;
+    HapticFeedback.mediumImpact();
+    setState(() => _selected = side);
+
+    final q = _quiz[_index];
+    final opt = side == 0 ? q.a : q.b;
+    for (final tag in opt.tags) {
+      _scores[tag] = (_scores[tag] ?? 0) + 1;
+    }
+    _picks.add(opt.label);
+    if (q.prefKey != null) {
+      _prefs[q.prefKey!] = side == 0 ? (q.prefA ?? '') : (q.prefB ?? '');
+    }
+
+    // Let the highlight land, then advance
+    await Future.delayed(const Duration(milliseconds: 280));
+    if (!mounted) return;
+    if (_index < _quiz.length - 1) {
+      setState(() { _index++; _selected = -1; _advancing = false; });
+    } else {
+      await _finish();
+    }
+  }
+
+  Future<void> _finish() async {
+    // Map inferred interest names → real interest IDs from the DB.
+    List<Interest> interests =
+        ref.read(interestsProvider).valueOrNull ?? const [];
+    if (interests.isEmpty) {
+      try { interests = await ref.read(interestsProvider.future); } catch (_) {}
+    }
+    final byName = {for (final i in interests) i.trimmed.toLowerCase(): i.id};
+
+    final sorted = _scores.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final chosen = <String>{};
+    for (final e in sorted) {
+      final id = byName[e.key.toLowerCase()];
+      if (id != null) chosen.add(id);
+      if (chosen.length >= 8) break;
+    }
+    // Safety net: if DB names don't line up exactly, fuzzy-match so the
+    // matching engine always has something to work with.
+    if (chosen.length < 4) {
+      for (final e in sorted) {
+        final key = e.key.toLowerCase().split(' ').first;
+        for (final i in interests) {
+          if (i.trimmed.toLowerCase().contains(key)) chosen.add(i.id);
+        }
+        if (chosen.length >= 6) break;
+      }
+    }
+
+    final ob = ref.read(onboardingProvider.notifier);
+    ob.setInterests(chosen);
+    ob.setQuizPicks(List.of(_picks));
+    _prefs.forEach(ob.setPref);
+
+    if (!mounted) return;
+    context.push(AppConstants.routeOnboardingEnjoy);
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final interestsAsync = ref.watch(interestsProvider);
-    final selectedIds = ref.watch(onboardingProvider).interestIds;
-
+  Widget build(BuildContext context) {
+    final q = _quiz[_index];
     return Scaffold(
       backgroundColor: AppColors.bgPage,
       body: SafeArea(child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          OnboardingHeader(step: 1, total: 2, onBack: () => context.pop()),
-          const SizedBox(height: 20),
-          const Text('What are you\ninterested in? 🤩', style: TextStyle(
+          OnboardingHeader(step: 1, total: 2, onBack: () {
+            if (_index > 0) {
+              setState(() { _index--; _selected = -1; _advancing = false;
+                if (_picks.isNotEmpty) _picks.removeLast(); });
+            } else {
+              context.pop();
+            }
+          }),
+          const SizedBox(height: 16),
+          const Text('This or That ⚡', style: TextStyle(
             fontFamily: 'Nunito', fontSize: 24, fontWeight: FontWeight.w900,
             color: AppColors.textDark)),
           const SizedBox(height: 4),
-          const Text('Select all that apply — the more the better!',
-            style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: AppColors.textMid)),
-          const SizedBox(height: 16),
-          Expanded(child: interestsAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => ErrorView(message: e.toString()),
-            data: (interests) {
-              final byCategory = <String, List<Interest>>{};
-              for (final i in interests) {
-                byCategory.putIfAbsent((i.category ?? 'Other').trim(), () => []).add(i);
-              }
-              return SingleChildScrollView(child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: byCategory.entries.map((entry) => Column(
-                  crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Padding(padding: const EdgeInsets.only(bottom: 8, top: 4),
-                    child: Text(entry.key.toUpperCase(), style: const TextStyle(
-                      fontFamily: 'Nunito', fontSize: 11,
-                      fontWeight: FontWeight.w800, color: AppColors.textLight,
-                      letterSpacing: 0.8))),
-                  Wrap(spacing: 8, runSpacing: 8, children: entry.value.map((i) =>
-                    InterestChip(
-                      label: i.trimmed,
-                      emoji: _emojis[i.trimmed],
-                      selected: selectedIds.contains(i.id),
-                      onTap: () => ref.read(onboardingProvider.notifier).toggleInterest(i.id),
-                    )).toList()),
-                  const SizedBox(height: 16),
-                ])).toList(),
-              ));
-            },
+          const Text('Tap whichever sounds more like you — no wrong answers.',
+            style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
+              color: AppColors.textMid)),
+          const SizedBox(height: 14),
+          // Progress
+          Row(children: [
+            Expanded(child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: (_index + 1) / _quiz.length,
+                minHeight: 8,
+                backgroundColor: AppColors.bgSurface,
+                valueColor: const AlwaysStoppedAnimation(AppColors.primary)))),
+            const SizedBox(width: 10),
+            Text('${_index + 1}/${_quiz.length}', style: const TextStyle(
+              fontFamily: 'Nunito', fontSize: 12,
+              fontWeight: FontWeight.w800, color: AppColors.textMid)),
+          ]),
+          const SizedBox(height: 20),
+          Expanded(child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 240),
+            transitionBuilder: (child, anim) => SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.25, 0), end: Offset.zero).animate(
+                  CurvedAnimation(parent: anim, curve: Curves.easeOut)),
+              child: FadeTransition(opacity: anim, child: child)),
+            child: Column(
+              key: ValueKey(_index),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(q.prompt, style: const TextStyle(
+                  fontFamily: 'Nunito', fontSize: 18,
+                  fontWeight: FontWeight.w800, color: AppColors.textDark)),
+                const SizedBox(height: 16),
+                Expanded(child: _ChoiceCard(
+                  option: q.a, selected: _selected == 0,
+                  onTap: () => _choose(0))),
+                // "OR" divider
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Row(children: [
+                    const Expanded(child: Divider(color: AppColors.border)),
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgSurface,
+                        borderRadius: BorderRadius.circular(999)),
+                      child: const Text('OR', style: TextStyle(
+                        fontFamily: 'Nunito', fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textMid, letterSpacing: 1))),
+                    const Expanded(child: Divider(color: AppColors.border)),
+                  ])),
+                Expanded(child: _ChoiceCard(
+                  option: q.b, selected: _selected == 1,
+                  onTap: () => _choose(1))),
+                const SizedBox(height: 8),
+              ]),
           )),
-          if (selectedIds.isNotEmpty) Padding(
-            padding: const EdgeInsets.only(bottom: 6, top: 4),
-            child: Text('${selectedIds.length} selected ✓', textAlign: TextAlign.center,
-              style: const TextStyle(fontFamily: 'Nunito', fontSize: 13,
-                fontWeight: FontWeight.w700, color: AppColors.success))),
-          PrimaryBtn(
-            label: 'Next',
-            onPressed: selectedIds.isEmpty ? null
-                : () => context.push(AppConstants.routeOnboardingEnjoy), // Save happens at summary
-          ),
         ]),
       )),
     );
   }
+}
+
+class _ChoiceCard extends StatelessWidget {
+  final _QOption option;
+  final bool selected;
+  final VoidCallback onTap;
+  const _ChoiceCard({required this.option, required this.selected,
+    required this.onTap});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: AnimatedScale(
+      scale: selected ? 1.03 : 1.0,
+      duration: const Duration(milliseconds: 160),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primaryPale : AppColors.bgCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? AppColors.primary : AppColors.border,
+            width: selected ? 2.5 : 1.5),
+          boxShadow: selected
+              ? [BoxShadow(color: AppColors.primary.withOpacity(0.2),
+                  blurRadius: 16, offset: const Offset(0, 6))]
+              : null),
+        child: Center(child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(option.emoji, style: const TextStyle(fontSize: 44)),
+            const SizedBox(height: 8),
+            Text(option.label, textAlign: TextAlign.center,
+              style: TextStyle(fontFamily: 'Nunito', fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: selected ? AppColors.primary : AppColors.textDark)),
+          ])),
+      ),
+    ));
 }
 
 // ══════════════════════════════════════════════
@@ -418,7 +580,9 @@ class _SummaryState extends ConsumerState<SummaryScreen> {
                 fontFamily: 'Nunito', fontSize: 12, color: Colors.white70,
                 fontWeight: FontWeight.w700)),
               const SizedBox(height: 12),
-              _SumRow('Interests selected', '${ob.interestIds.length}'),
+              if (ob.quizPicks.isNotEmpty)
+                _SumRow('Your vibe', ob.quizPicks.take(3).join(' · ')),
+              _SumRow('Interests matched', '${ob.interestIds.length}'),
               _SumRow('Strengths identified', '${ob.traitIds.length}'),
               _SumRow('Pathway focus', ob.prefs['pathway'] ?? 'Both'),
             ])),

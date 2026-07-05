@@ -86,6 +86,19 @@ class DbService {
     }, onConflict: 'firebase_uid');
   }
 
+  /// Reads the user's onboarding preferences (pathway focus, work
+  /// environment, etc.) — used to personalise the roadmap.
+  static Future<Map<String, dynamic>?> getPreferences() async {
+    if (_uid == null) return null;
+    try {
+      final res = await _sb.from('preferences').select()
+          .eq('firebase_uid', _uid!).maybeSingle();
+      return res;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<List<Career>> getAllCareers() async {
     final res = await _sb.from('careers').select('id, name, avg_salary, description, category').order('name');
     return (res as List).map((e) => Career.fromJson(e)).toList();

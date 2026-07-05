@@ -66,6 +66,14 @@ final isPremiumProvider = FutureProvider<bool>((ref) async {
     (sub.status == 'active' || sub.status == 'trialing');
 });
 
+// ── User preferences (pathway focus etc.) ─────────────────────
+// Personalises the roadmap: 'University' | 'Apprenticeship' | 'Both'
+final preferencesProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
+  final uid = ref.watch(currentUidProvider);
+  if (uid == null) return null;
+  return DbService.getPreferences();
+});
+
 // ── Search query ──────────────────────────────────────────────
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
@@ -124,20 +132,26 @@ class OnboardingState {
   final Set<String> traitIds;
   final Map<String, String> prefs;
   final String role;
+  /// Readable picks from the This-or-That quiz, e.g.
+  /// ['Outdoors', 'People', 'Creative'] — used on the summary screen
+  /// and to make match explanations feel personal.
+  final List<String> quizPicks;
   const OnboardingState({
     this.interestIds = const {},
     this.traitIds = const {},
     this.prefs = const {},
     this.role = 'student',
+    this.quizPicks = const [],
   });
   OnboardingState copyWith({
     Set<String>? interestIds, Set<String>? traitIds,
-    Map<String, String>? prefs, String? role,
+    Map<String, String>? prefs, String? role, List<String>? quizPicks,
   }) => OnboardingState(
     interestIds: interestIds ?? this.interestIds,
     traitIds: traitIds ?? this.traitIds,
     prefs: prefs ?? this.prefs,
     role: role ?? this.role,
+    quizPicks: quizPicks ?? this.quizPicks,
   );
 }
 
@@ -159,6 +173,11 @@ class OnboardingNotifier extends Notifier<OnboardingState> {
     p[k] = v;
     state = state.copyWith(prefs: p);
   }
+  /// Bulk-set inferred interests (from the This-or-That quiz).
+  void setInterests(Set<String> ids) =>
+      state = state.copyWith(interestIds: ids);
+  void setQuizPicks(List<String> picks) =>
+      state = state.copyWith(quizPicks: picks);
   void setRole(String r) => state = state.copyWith(role: r);
   void reset() => state = const OnboardingState();
 }

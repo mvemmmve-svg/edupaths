@@ -49,11 +49,14 @@ class _CareerDetailState extends ConsumerState<CareerDetailScreen>
   Future<void> _toggle(String name, String? salary) async {
     if (_saved) {
       await DbService.unsaveItem(widget.careerId);
+      if (mounted) setState(() => _saved = false);
     } else {
+      // Free tier: up to kFreeSaveLimit saves; shows upgrade sheet at cap
+      if (!await guardSaveLimit(context, ref)) return;
       await DbService.saveItem(itemType: 'career', itemId: widget.careerId,
         title: name, subtitle: salary);
+      if (mounted) setState(() => _saved = true);
     }
-    setState(() => _saved = !_saved);
     ref.invalidate(savedItemsProvider);
   }
 
@@ -402,6 +405,7 @@ class CourseDetailScreen extends ConsumerWidget {
                           if (saved) {
                             await DbService.unsaveItem(courseId);
                           } else {
+                            if (!await guardSaveLimit(ctx, r)) return;
                             await DbService.saveItem(
                               itemType: 'course',
                               itemId: courseId,
@@ -459,11 +463,14 @@ class CourseDetailScreen extends ConsumerWidget {
                 }),
                 const SizedBox(height: 10),
                 OutlineBtn(label: 'Save Course', onPressed: () async {
+                  if (!await guardSaveLimit(context, ref)) return;
                   await DbService.saveItem(itemType: 'course', itemId: course.id,
                     title: course.trimmed, subtitle: course.institution?.trimmed);
                   ref.invalidate(savedItemsProvider);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Course saved! ✓'), backgroundColor: AppColors.success));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Course saved! ✓'), backgroundColor: AppColors.success));
+                  }
                 }),
               ]),
             )),
@@ -1051,34 +1058,13 @@ class CareersByCategoryScreen extends ConsumerWidget {
     if (careers.isEmpty) return const EmptyState(emoji: '💼',
       title: 'No careers found', subtitle: 'Try browsing all careers');
 
-    // Free users see first 5, rest locked
+    // Browsing is free for everyone — Premium gates comparison, unlimited
+    // saves and the detailed roadmap instead of hiding the catalogue.
     return ListView.separated(
       padding: const EdgeInsets.all(16),
-      itemCount: careers.length + (isPremium ? 0 : 1),
+      itemCount: careers.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (_, i) {
-        // Premium upsell card at end for free users
-        if (!isPremium && i == 5) {
-          return GestureDetector(
-            onTap: () => context.push(AppConstants.routePricing),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: gradientBox(radius: 14),
-              child: Row(children: [
-                const Text('🔒', style: TextStyle(fontSize: 28)),
-                const SizedBox(width: 12),
-                Expanded(child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('${careers.length - 5} more careers in $category',
-                    style: const TextStyle(fontFamily: 'Nunito', fontSize: 14,
-                      fontWeight: FontWeight.w900, color: Colors.white)),
-                  const Text('Upgrade to Premium to see all careers.',
-                    style: TextStyle(fontFamily: 'Nunito', fontSize: 12,
-                      color: Colors.white70)),
-                ])),
-              ])));
-        }
-        if (!isPremium && i >= 5) return const SizedBox();
         final career = careers[i];
         return EduCard(
           onTap: () => context.push('/pathway/${career.id}'),

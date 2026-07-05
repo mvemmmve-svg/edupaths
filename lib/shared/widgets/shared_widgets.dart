@@ -1,7 +1,9 @@
 // lib/shared/widgets/shared_widgets.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
+import '../../core/services/providers.dart';
 import '../../core/theme/app_theme.dart';
 
 // ── Buttons ───────────────────────────────────────────────────
@@ -358,6 +360,130 @@ class PremiumLock extends StatelessWidget {
             fontSize: 12, color: AppColors.textMid, height: 1.35)),
         ])),
         const Icon(Icons.chevron_right_rounded, color: AppColors.waypoint),
+      ]),
+    ));
+}
+
+// ── Match reason humaniser ─────────────────────────────────────
+// Turns the raw match_reason stored in the DB, e.g.
+//   "Matched on: Technology, Gaming · Strengths: Problem solving"
+// into a friendly one-liner for cards:
+//   "Because you're into Technology & Gaming — and you shine at problem solving"
+String friendlyMatchReason(String? raw, {int maxInterests = 2}) {
+  const fallback = 'Matched to your interests and strengths';
+  if (raw == null || raw.trim().isEmpty) return fallback;
+  final r = raw.trim();
+  if (!r.contains('Matched on')) {
+    // Already a human sentence (or unknown format) — show it if short.
+    return r.length <= 90 ? r : fallback;
+  }
+  var body = r
+      .replaceAll('Matched on your interests in:', '')
+      .replaceAll('Matched on:', '');
+  String? strengths;
+  final sIdx = body.indexOf('Strengths:');
+  if (sIdx != -1) {
+    strengths = body.substring(sIdx + 'Strengths:'.length).trim();
+    body = body.substring(0, sIdx);
+    strengths = strengths.split(',').first.replaceAll('·', '').trim();
+    if (strengths.isEmpty) strengths = null;
+  }
+  final interests = body
+      .replaceAll('·', '')
+      .split(',')
+      .map((e) => e.trim())
+      .where((e) => e.isNotEmpty)
+      .take(maxInterests)
+      .toList();
+  if (interests.isNotEmpty && strengths != null) {
+    return "Because you're into ${interests.join(' & ')} — and you shine at ${strengths.toLowerCase()}";
+  }
+  if (interests.isNotEmpty) {
+    return "Because you're into ${interests.join(' & ')}";
+  }
+  if (strengths != null) {
+    return "Because you shine at ${strengths.toLowerCase()}";
+  }
+  return fallback;
+}
+
+// ── Match reason line (✨ on cards) ────────────────────────────
+// Small tappable line under a match card title. Tapping opens the
+// full "Why this matches you" screen.
+class MatchReasonLine extends StatelessWidget {
+  final String? reason;
+  final String careerId;
+  final Color? color;
+  const MatchReasonLine({super.key, required this.reason,
+    required this.careerId, this.color});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: () => context.push('/why-match/$careerId'),
+    child: Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('✨ ', style: TextStyle(fontSize: 11)),
+        Flexible(child: Text(friendlyMatchReason(reason),
+          maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5,
+            fontWeight: FontWeight.w700, height: 1.3,
+            color: color ?? AppColors.primary))),
+      ]),
+    ));
+}
+
+// ── Free-tier save limit ───────────────────────────────────────
+// Free accounts can save up to [kFreeSaveLimit] items; Premium is
+// unlimited. Call guardSaveLimit() BEFORE saving — if the limit is
+// reached it shows a friendly upgrade sheet and returns false.
+const kFreeSaveLimit = 3;
+
+Future<bool> guardSaveLimit(BuildContext context, WidgetRef ref) async {
+  final isPrem = ref.read(isPremiumProvider).valueOrNull ?? false;
+  if (isPrem) return true;
+  var saved = ref.read(savedItemsProvider).valueOrNull;
+  if (saved == null) {
+    try { saved = await ref.read(savedItemsProvider.future); } catch (_) {
+      saved = const [];
+    }
+  }
+  if (saved.length < kFreeSaveLimit) return true;
+  if (context.mounted) showSaveLimitSheet(context);
+  return false;
+}
+
+void showSaveLimitSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (ctx) => Padding(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('🔖', style: TextStyle(fontSize: 44)),
+        const SizedBox(height: 12),
+        const Text('Your Saved list is full!',
+          style: TextStyle(fontFamily: 'Nunito', fontSize: 19,
+            fontWeight: FontWeight.w900, color: AppColors.textDark)),
+        const SizedBox(height: 6),
+        Text(
+          'Free accounts can save up to $kFreeSaveLimit careers or courses. '
+          'Go Premium for unlimited saves, route comparison and your full roadmap.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontFamily: 'Nunito', fontSize: 13.5,
+            color: AppColors.textMid, height: 1.5)),
+        const SizedBox(height: 18),
+        PrimaryBtn(label: 'Go Premium — unlimited saves ⭐',
+          onPressed: () {
+            Navigator.pop(ctx);
+            context.push('/pricing');
+          }),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Maybe later',
+            style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
+              fontWeight: FontWeight.w700, color: AppColors.textMid))),
       ]),
     ));
 }
