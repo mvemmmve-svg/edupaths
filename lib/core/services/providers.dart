@@ -46,10 +46,24 @@ final subscriptionProvider = FutureProvider<Subscription?>((ref) async {
 
 // ── isPremium ─────────────────────────────────────────────────
 final isPremiumProvider = FutureProvider<bool>((ref) async {
+  final uid = ref.watch(currentUidProvider);
+  if (uid == null) return false;
+  // Admins always have full access
+  final user = await ref.watch(appUserProvider.future);
+  if (user?.isAdmin == true) return true;
+  // Entitlements is the source of truth (kept in sync from subscriptions
+  // by a database trigger — covers trials too)
+  try {
+    final ent = await Supabase.instance.client
+        .from('entitlements').select('tier')
+        .eq('user_id', uid).maybeSingle();
+    if (ent != null && ent['tier'] == 'premium') return true;
+  } catch (_) {}
+  // Fallback: active or trialing subscription
   final sub = await ref.watch(subscriptionProvider.future);
   return sub != null &&
     (sub.plan == 'premium' || sub.plan == 'premium_plus') &&
-    sub.status == 'active';
+    (sub.status == 'active' || sub.status == 'trialing');
 });
 
 // ── Search query ──────────────────────────────────────────────
