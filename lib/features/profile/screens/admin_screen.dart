@@ -124,7 +124,9 @@ class _UsersTabState extends ConsumerState<_UsersTab> {
           final matchFilter = _filter == 'All' ||
               (_filter == 'Admin' && u['is_admin'] == true) ||
               (_filter == 'Advisor' && u['role_type'] == 'advisor') ||
-              (_filter == 'Premium' && (u['subscriptions'] as List?)?.isNotEmpty == true) ||
+              (_filter == 'Premium' &&
+                  (u['subscription_plan'] == 'premium' ||
+                   u['subscription_plan'] == 'premium_plus')) ||
               (_filter == 'Free' && (u['subscriptions'] as List?)?.isEmpty != false);
           return matchSearch && matchFilter;
         }).toList();
