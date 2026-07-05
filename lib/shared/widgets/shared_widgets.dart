@@ -1,5 +1,6 @@
 // lib/shared/widgets/shared_widgets.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -320,4 +321,43 @@ class BackBtn extends StatelessWidget {
         border: Border.all(color: AppColors.border)),
       child: const Icon(Icons.arrow_back_rounded, size: 20, color: AppColors.textMid)),
   );
+}
+
+
+// ── Premium lock (free-tier gate) ──────────────────────────────
+// Drop-in card shown in place of a locked feature; taps go to Pricing.
+class PremiumLock extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  const PremiumLock({super.key, required this.title,
+    this.subtitle = 'Upgrade to Premium to unlock this feature.'});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: () => context.push('/pricing'),
+    child: Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.waypoint.withOpacity(0.5))),
+      child: Row(children: [
+        Container(width: 44, height: 44,
+          decoration: BoxDecoration(
+            color: AppColors.waypoint.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(12)),
+          child: const Icon(Icons.lock_rounded,
+            color: AppColors.waypoint, size: 22)),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+          Text(title, style: const TextStyle(fontFamily: 'Nunito',
+            fontSize: 14.5, fontWeight: FontWeight.w900,
+            color: AppColors.textDark)),
+          const SizedBox(height: 2),
+          Text(subtitle, style: const TextStyle(fontFamily: 'Nunito',
+            fontSize: 12, color: AppColors.textMid, height: 1.35)),
+        ])),
+        const Icon(Icons.chevron_right_rounded, color: AppColors.waypoint),
+      ]),
+    ));
 }
