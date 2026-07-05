@@ -47,13 +47,17 @@ class AppColors {
   static const bgCard        = Color(0xFFFFFFFF);
   static const bgSurface     = Color(0xFFEEECFF);
   static const bgGrey        = Color(0xFFF1F5F9);
-  static const textDark      = Color(0xFF1A1560);
-  static const textMid       = Color(0xFF64748B);
-  static const textLight     = Color(0xFFADB5BD);
-  static const success       = Color(0xFF22C55E);
-  static const error         = Color(0xFFEF4444);
-  static const warning       = Color(0xFFF59E0B);
-  static const border        = Color(0xFFE8E5FF);
+  // TEXT — deliberately darkened (5 Jul 2026): the old greys read as
+  // faint/washed-out. These pass WCAG AA on white and on bgPage.
+  static const textDark      = Color(0xFF14103F); // near-black navy headings
+  static const textMid       = Color(0xFF3D4660); // strong slate body text
+  static const textLight     = Color(0xFF6E7891); // still-readable captions
+  // Status colours — deepened one notch so they hold up as text, not
+  // just as fills.
+  static const success       = Color(0xFF16A34A);
+  static const error         = Color(0xFFDC2626);
+  static const warning       = Color(0xFFD97706);
+  static const border        = Color(0xFFDDD8F7);
 }
 
 enum PathwayType { university, apprenticeship }
@@ -115,8 +119,8 @@ class AppTheme {
       headlineSmall:  _n(17, FontWeight.w700, AppColors.textDark),
       titleLarge:     _n(15, FontWeight.w700, AppColors.textDark),
       bodyLarge:      _n(15, FontWeight.w500, AppColors.textDark),
-      bodyMedium:     _n(14, FontWeight.w400, AppColors.textMid),
-      bodySmall:      _n(12, FontWeight.w400, AppColors.textLight),
+      bodyMedium:     _n(14, FontWeight.w600, AppColors.textMid),
+      bodySmall:      _n(12, FontWeight.w600, AppColors.textLight),
       labelLarge:     _n(15, FontWeight.w700, Colors.white),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
