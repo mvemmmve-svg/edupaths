@@ -34,7 +34,8 @@ class MainShell extends StatelessWidget {
     if (loc.startsWith('/edubot')) return null; // not on the chat itself
     return FloatingActionButton(
       onPressed: () => context.push(AppConstants.routeEduBot),
-      backgroundColor: AppColors.primary,
+      // Bright green so it stands out from the purple scheme
+      backgroundColor: const Color(0xFF00C853),
       tooltip: 'Ask EduBot',
       child: const Text('🤖', style: TextStyle(fontSize: 24)),
     );
