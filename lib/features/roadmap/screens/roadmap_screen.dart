@@ -76,18 +76,6 @@ class RoadmapScreen extends ConsumerWidget {
 
           const SizedBox(height: 20),
 
-          // ── Career-specific qualification guide ──────────
-          if (topCareerId.isNotEmpty) ...[
-            const SectionHeader(title: 'Recommended Qualifications'),
-            const SizedBox(height: 4),
-            Text('Based on your top match: $topCareerName',
-              style: const TextStyle(fontFamily: 'Nunito',
-                fontSize: 12, color: AppColors.textMid)),
-            const SizedBox(height: 12),
-            _CareerQualificationGuide(careerId: topCareerId, careerName: topCareerName),
-            const SizedBox(height: 24),
-          ],
-
           // ── Journey Timeline ──────────────────────────────
           const SectionHeader(title: 'Your Learning Journey'),
           const SizedBox(height: 16),
@@ -110,13 +98,17 @@ class RoadmapScreen extends ConsumerWidget {
 
           const SizedBox(height: 24),
 
-          // ── Full qualification browser ────────────────────
+          // ── Full qualification browser (Premium) ──────────
           const SectionHeader(title: 'All Qualifications 📋'),
           const SizedBox(height: 8),
           const Text('Browse all qualifications by type.',
             style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: AppColors.textMid)),
           const SizedBox(height: 12),
-          _QualificationBrowser(),
+          if (ref.watch(isPremiumProvider).valueOrNull == true)
+            _QualificationBrowser()
+          else
+            const PremiumLock(title: 'All Qualifications',
+              subtitle: 'Browse every GCSE, A-Level, BTEC and T-Level — Premium only.'),
 
           const SizedBox(height: 24),
 
