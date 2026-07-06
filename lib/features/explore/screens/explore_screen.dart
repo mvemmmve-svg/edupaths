@@ -26,6 +26,15 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
   void initState() {
     super.initState();
     _tabs = TabController(length: 2, vsync: this);
+    // The search query lives in a global provider so it survives leaving
+    // the tab — reset it every time Explore is opened so stale searches
+    // (e.g. "animator") don't silently filter the list.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _searchCtrl.clear();
+        ref.read(searchQueryProvider.notifier).state = '';
+      }
+    });
   }
 
   @override

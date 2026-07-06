@@ -35,6 +35,30 @@ final _deckProvider = FutureProvider<List<Career>>((ref) async {
   }
 });
 
+// ── Free-tier daily swipe limit ────────────────────────────────
+// Free users get a fresh hand of swipes each day; Premium is unlimited.
+// Counted server-side from today's career_feedback rows so it survives
+// refreshes and app restarts.
+const kFreeDailySwipes = 10;
+
+final _todaySwipesProvider = FutureProvider<int>((ref) async {
+  final sb = Supabase.instance.client;
+  final uid = sb.auth.currentUser?.id;
+  if (uid == null) return 0;
+  final now = DateTime.now();
+  final startOfDay =
+      DateTime(now.year, now.month, now.day).toUtc().toIso8601String();
+  try {
+    final res = await sb.from('career_feedback')
+        .select('career_id')
+        .eq('user_id', uid)
+        .gte('created_at', startOfDay);
+    return (res as List).length;
+  } catch (_) {
+    return 0;
+  }
+});
+
 class DiscoverScreen extends ConsumerStatefulWidget {
   const DiscoverScreen({super.key});
   @override
@@ -46,6 +70,7 @@ class _DiscoverState extends ConsumerState<DiscoverScreen>
   final List<Career> _deck = [];
   bool _loaded = false;
   int _liked = 0;
+  int _sessionSwipes = 0; // swipes this session (adds to today's DB count)
 
   // drag state for the top card
   Offset _drag = Offset.zero;
@@ -88,6 +113,7 @@ class _DiscoverState extends ConsumerState<DiscoverScreen>
     if (_deck.isEmpty) return;
     final career = _deck.removeAt(0);
     if (like) _liked++;
+    _sessionSwipes++;
     setState(() {});
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
@@ -131,11 +157,21 @@ class _DiscoverState extends ConsumerState<DiscoverScreen>
       backgroundColor: AppColors.bgPage,
       appBar: AppBar(title: const Text('Discover 🔥')),
       body: SafeArea(
-        child: !_loaded
-            ? const Center(child: CircularProgressIndicator())
-            : _deck.isEmpty
-                ? _AllDone(liked: _liked)
-                : Column(children: [
+        child: Builder(builder: (context) {
+          final isPrem = ref.watch(isPremiumProvider).valueOrNull ?? false;
+          final baseSwipes = ref.watch(_todaySwipesProvider).valueOrNull ?? 0;
+          final used = baseSwipes + _sessionSwipes;
+          final left = kFreeDailySwipes - used;
+
+          if (!_loaded) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!isPrem && left <= 0) {
+            return _SwipeLimitReached(liked: _liked);
+          }
+          if (_deck.isEmpty) return _AllDone(liked: _liked);
+
+          return Column(children: [
                     const SizedBox(height: 4),
                     const Text('Swipe right if it sounds like you ➡️',
                         style: TextStyle(
@@ -143,6 +179,21 @@ class _DiscoverState extends ConsumerState<DiscoverScreen>
                             fontSize: 13,
                             color: AppColors.textMid,
                             fontWeight: FontWeight.w600)),
+                    if (!isPrem) Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: left <= 3
+                              ? AppColors.error.withOpacity(0.1)
+                              : AppColors.primaryPale,
+                          borderRadius: BorderRadius.circular(999)),
+                        child: Text('🔥 $left swipe${left == 1 ? '' : 's'} left today',
+                          style: TextStyle(fontFamily: 'Nunito', fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: left <= 3
+                                ? AppColors.error : AppColors.primary)))),
                     Expanded(
                       child: Center(
                         child: SizedBox(
@@ -186,7 +237,8 @@ class _DiscoverState extends ConsumerState<DiscoverScreen>
                                 onTap: () => _startFly(true)),
                           ]),
                     ),
-                  ]),
+                  ]);
+        }),
       ),
     );
   }
@@ -400,4 +452,40 @@ class _AllDone extends StatelessWidget {
                 label: 'View Saved 🔖',
                 onPressed: () => context.go('/saved')),
           ])));
+}
+
+// ── Daily swipe limit reached (free tier) ──────────────────────
+class _SwipeLimitReached extends StatelessWidget {
+  final int liked;
+  const _SwipeLimitReached({required this.liked});
+  @override
+  Widget build(BuildContext context) => Center(child: Padding(
+    padding: const EdgeInsets.all(28),
+    child: Column(mainAxisSize: MainAxisSize.min, children: [
+      const Text('🔥', style: TextStyle(fontSize: 52)),
+      const SizedBox(height: 14),
+      Text("That's your $kFreeDailySwipes swipes for today!",
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontFamily: 'Nunito', fontSize: 19,
+          fontWeight: FontWeight.w900, color: AppColors.textDark)),
+      const SizedBox(height: 8),
+      Text(
+        liked > 0
+            ? 'You liked $liked career${liked == 1 ? '' : 's'} — nice taste. '
+              'Come back tomorrow for a fresh deck, or go unlimited now.'
+            : 'Come back tomorrow for a fresh deck of careers — '
+              'or go unlimited right now.',
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontFamily: 'Nunito', fontSize: 13.5,
+          color: AppColors.textMid, height: 1.5)),
+      const SizedBox(height: 20),
+      PrimaryBtn(label: '⭐ Unlimited swipes with Premium',
+        onPressed: () => context.push('/pricing')),
+      const SizedBox(height: 4),
+      TextButton(
+        onPressed: () => context.go('/home'),
+        child: const Text('Back to Home', style: TextStyle(
+          fontFamily: 'Nunito', fontSize: 13,
+          fontWeight: FontWeight.w700, color: AppColors.textMid))),
+    ])));
 }

@@ -15,6 +15,7 @@ import '../../features/saved/screens/saved_screen.dart';
 import '../../features/edubot/screens/edubot_screen.dart';
 import '../../features/support/screens/support_screens.dart';
 import '../../features/discover/screens/discover_screen.dart';
+import '../../features/quiz/screens/career_quiz_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/profile/screens/admin_screen.dart';
 import '../../features/notifications/screens/notifications_screen.dart';
@@ -127,6 +128,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (c, s) => const SchoolAdvisorScreen()),
       GoRoute(path: '/discover',
         builder: (c, s) => const DiscoverScreen()),
+      GoRoute(path: '/career-quiz',
+        builder: (c, s) => const CareerQuizScreen()),
       GoRoute(path: '/support',
         builder: (c, s) => const SupportThreadScreen()),
       GoRoute(path: '/admin-inbox',

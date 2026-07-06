@@ -221,6 +221,34 @@ class HomeScreen extends ConsumerWidget {
 
             const SizedBox(height: 14),
 
+            // ── Career IQ quiz entry ──
+            GestureDetector(
+              onTap: () => context.push('/career-quiz'),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.bgCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.border)),
+                child: const Row(children: [
+                  Text('🧠', style: TextStyle(fontSize: 22)),
+                  SizedBox(width: 10),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Career IQ Quiz', style: TextStyle(
+                      fontFamily: 'Nunito', fontSize: 14,
+                      fontWeight: FontWeight.w900)),
+                    Text('Think you know what a nurse actually earns? Prove it.',
+                      style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5,
+                        color: AppColors.textMid)),
+                  ])),
+                  Icon(Icons.chevron_right_rounded, color: AppColors.primary),
+                ]),
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
             // ── Career of the Day (rotates daily) ──
             Consumer(builder: (c, r, _) {
               final careers = r.watch(allCareersProvider).valueOrNull;
