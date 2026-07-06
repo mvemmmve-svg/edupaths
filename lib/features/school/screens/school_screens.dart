@@ -889,21 +889,75 @@ class _UploadState extends ConsumerState<UploadStudentsSheet> {
     final results = <Map<String, String>>[];
     for (final line in lines) {
       if (line.trim().isEmpty) continue;
-      final parts = line.split(',').map((p) => p.trim()).toList();
+      final parts = _splitCsvLine(line);
       if (parts.isEmpty || parts[0].isEmpty) continue;
       if (parts[0].toLowerCase() == 'name') continue;
-      results.add({'name': parts[0],
-        'email': parts.length > 1 ? parts[1] : '',
-        'year': parts.length > 2 ? parts[2] : ''});
+      // Find the email field wherever it lands, so a "Surname, First"
+      // export with a stray comma doesn't shift the columns.
+      final emailIdx =
+          parts.indexWhere((p) => p.contains('@') && p.contains('.'));
+      String name, email = '', year = '';
+      if (emailIdx > 0) {
+        name = parts.sublist(0, emailIdx).join(' ')
+            .replaceAll(RegExp(r'\s+'), ' ').trim();
+        email = parts[emailIdx];
+        year = parts.length > emailIdx + 1 ? parts[emailIdx + 1] : '';
+      } else {
+        name = parts[0];
+        email = parts.length > 1 ? parts[1] : '';
+        year = parts.length > 2 ? parts[2] : '';
+      }
+      results.add({'name': name, 'email': email, 'year': year});
     }
     setState(() { _preview = results; _error = results.isEmpty ? 'No valid data found' : null; });
+  }
+
+  /// Splits a CSV line but respects "double quotes", so "Smith, John"
+  /// stays one field instead of splitting on the comma inside it.
+  List<String> _splitCsvLine(String line) {
+    final out = <String>[];
+    final buf = StringBuffer();
+    var inQuotes = false;
+    for (var i = 0; i < line.length; i++) {
+      final ch = line[i];
+      if (ch == '"') {
+        inQuotes = !inQuotes;
+      } else if (ch == ',' && !inQuotes) {
+        out.add(buf.toString().trim());
+        buf.clear();
+      } else {
+        buf.write(ch);
+      }
+    }
+    out.add(buf.toString().trim());
+    return out;
   }
 
   Future<void> _upload() async {
     if (_preview.isEmpty) return;
     setState(() => _saving = true);
     try {
-      await _sb.from('school_students').insert(_preview.map((s) => {
+      // Skip anyone already on this cohort's list (matched by email) so
+      // re-pasting the same CSV doesn't create duplicates.
+      final existing = await _sb.from('school_students')
+          .select('student_email').eq('cohort_id', widget.cohortId);
+      final seen = (existing as List)
+          .map((e) => (e['student_email'] ?? '').toString().toLowerCase())
+          .where((e) => e.isNotEmpty).toSet();
+      final toInsert = _preview.where((s) {
+        final e = (s['email'] ?? '').toLowerCase();
+        return e.isEmpty || !seen.contains(e);
+      }).toList();
+      final skipped = _preview.length - toInsert.length;
+      if (toInsert.isEmpty) {
+        if (mounted) {
+          setState(() => _saving = false);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Everyone on this list is already in the cohort.')));
+        }
+        return;
+      }
+      await _sb.from('school_students').insert(toInsert.map((s) => {
         'cohort_id': widget.cohortId, 'school_id': widget.schoolId,
         'student_name': s['name'], 'student_email': s['email'],
         'year_group': s['year'], 'status': 'invited',
@@ -912,7 +966,8 @@ class _UploadState extends ConsumerState<UploadStudentsSheet> {
         Navigator.pop(context);
         widget.onUploaded();
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${_preview.length} students uploaded!'),
+          content: Text('${toInsert.length} students uploaded!'
+            '${skipped > 0 ? ' ($skipped already existed, skipped)' : ''}'),
           backgroundColor: AppColors.success));
       }
     } catch (e) {

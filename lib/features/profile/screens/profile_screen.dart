@@ -10,6 +10,7 @@ import '../../../core/services/db_service.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/shared_widgets.dart';
+import '../../school/screens/join_school_screen.dart';
 import '../../../main.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -141,6 +142,22 @@ class ProfileScreen extends ConsumerWidget {
                 : const SizedBox()),
             _MenuItem(emoji: '🎯', label: 'Interests & Preferences',
               onTap: () => _editInterests(context, ref)),
+            // School link — quiet by design. Students already linked see
+            // their school; everyone else sees a low-key "Join" row. Users
+            // who aren't part of a school can simply ignore it.
+            Consumer(builder: (c, r, _) {
+              final link = r.watch(mySchoolLinkProvider).valueOrNull;
+              if (link != null) {
+                final schoolName =
+                    (link['schools'] as Map?)?['name'] ?? 'your school';
+                return _MenuItem(emoji: '🏫',
+                  label: 'Linked to $schoolName',
+                  onTap: () => ScaffoldMessenger.of(c).showSnackBar(SnackBar(
+                    content: Text('You\'re linked to $schoolName ✓'))));
+              }
+              return _MenuItem(emoji: '🏫', label: 'Join your school',
+                onTap: () => c.push('/join-school'));
+            }),
             _MenuItem(emoji: '🗺️', label: 'My Roadmap',
               onTap: () => context.go(AppConstants.routeRoadmap)),
             _MenuItem(emoji: '🔖', label: 'Saved Items',
