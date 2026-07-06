@@ -14,16 +14,18 @@ final _sb = Supabase.instance.client;
 
 // ── Children provider ─────────────────────────
 final childrenProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  ref.watch(authStateProvider);
-  final uid = _sb.auth.currentUser?.id;
+  // Watch the UID value (not the raw auth stream) so token-refresh events
+  // on web don't restart this load in a loop → infinite spinner.
+  final uid = ref.watch(currentUidProvider);
   if (uid == null) return [];
-  final user = await DbService.getUserByUid(uid);
+  final user = await DbService.getUserByUid(uid)
+      .timeout(const Duration(seconds: 12));
   if (user == null) return [];
-  // Simple query first, then fetch child details separately
   final links = await _sb
       .from('parent_child')
       .select('id, child_name, child_id')
-      .eq('parent_id', user.id);
+      .eq('parent_id', user.id)
+      .timeout(const Duration(seconds: 12));
   if ((links as List).isEmpty) return [];
   
   final result = <Map<String, dynamic>>[];
