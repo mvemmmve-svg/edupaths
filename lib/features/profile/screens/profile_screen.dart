@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../shared/models/models.dart';
 import '../../../core/constants/app_constants.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
@@ -142,6 +143,11 @@ class ProfileScreen extends ConsumerWidget {
                 : const SizedBox()),
             _MenuItem(emoji: '🎯', label: 'Interests & Preferences',
               onTap: () => _editInterests(context, ref)),
+            // Interactive tour for anyone unsure how the app works
+            _MenuItem(emoji: '❓', label: 'How to use EduPath',
+              onTap: () => launchUrl(
+                Uri.parse('https://app.supademo.com/demo/cmr94i2lt1zwyqm3ag2rwmk59?utm_source=link'),
+                mode: LaunchMode.externalApplication)),
             // School link — quiet by design. Students already linked see
             // their school; everyone else sees a low-key "Join" row. Users
             // who aren't part of a school can simply ignore it.
