@@ -88,7 +88,7 @@ class _ParentDashState extends ConsumerState<ParentDashboardScreen>
       backgroundColor: AppColors.bgPage,
       appBar: AppBar(
         title: const Text('Parent Dashboard 👨‍👩‍👧'),
-        leading: GestureDetector(onTap: () => context.pop(), child: const BackBtn()),
+        leading: GestureDetector(onTap: () => context.go('/home'), child: const BackBtn()),
         actions: [
           IconButton(icon: const Icon(Icons.home_rounded),
             onPressed: () => context.go('/home')),
@@ -114,6 +114,12 @@ class _ParentDashState extends ConsumerState<ParentDashboardScreen>
               _ParentsHubTab(),
             ])
           : _GuestPrompt(),
+      floatingActionButton: isLoggedIn ? FloatingActionButton(
+        onPressed: () => context.push(AppConstants.routeEduBot),
+        backgroundColor: const Color(0xFF00C853),
+        tooltip: 'Ask EduBot',
+        child: const Text('🤖', style: TextStyle(fontSize: 24)),
+      ) : null,
     );
   }
 }
@@ -350,22 +356,36 @@ class _ChildInsightCard extends ConsumerWidget {
 }
 
 // ── TAB 3: Parents Hub ────────────────────────
-class _ParentsHubTab extends StatelessWidget {
+class _ParentsHubTab extends StatefulWidget {
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.all(20),
-    children: [
-      Container(padding: const EdgeInsets.all(20), decoration: gradientBox(radius: 16),
-        child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Parents Hub 📋', style: TextStyle(fontFamily: 'Nunito',
-            fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
-          SizedBox(height: 8),
-          Text('Resources and guidance to support your child\'s career journey.',
-            style: TextStyle(fontFamily: 'Nunito', fontSize: 14,
-              color: Colors.white70, height: 1.4)),
-        ])),
-      const SizedBox(height: 20),
+  State<_ParentsHubTab> createState() => _ParentsHubTabState();
+}
 
+class _ParentsHubTabState extends State<_ParentsHubTab>
+    with SingleTickerProviderStateMixin {
+  late final TabController _sub = TabController(length: 3, vsync: this);
+  @override
+  void dispose() { _sub.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+    Container(
+      color: AppColors.bgCard,
+      child: TabBar(
+        controller: _sub,
+        labelColor: AppColors.primary,
+        unselectedLabelColor: AppColors.textLight,
+        indicatorColor: AppColors.primary,
+        labelStyle: const TextStyle(fontFamily: 'Nunito',
+          fontSize: 11.5, fontWeight: FontWeight.w800),
+        tabs: const [
+          Tab(text: '📚 Options'),
+          Tab(text: '📝 Revision'),
+          Tab(text: '💚 Wellbeing'),
+        ])),
+    Expanded(child: TabBarView(controller: _sub, children: [
+      // ── Sub-tab 1: Options (qualifications + key dates) ──
+      ListView(padding: const EdgeInsets.all(20), children: [
       const SectionHeader(title: 'Understanding Your Child\'s Options'),
       const SizedBox(height: 12),
       ...[
@@ -432,8 +452,11 @@ class _ParentsHubTab extends StatelessWidget {
               fontSize: 11, color: AppColors.primary)),
           ])),
         ])))),
+      const SizedBox(height: 80),
+      ]),
 
-      const SizedBox(height: 20),
+      // ── Sub-tab 2: Revision (exam boards + books) ──
+      ListView(padding: const EdgeInsets.all(20), children: [
       const SectionHeader(title: 'Support by Exam Board'),
       const SizedBox(height: 4),
       const Padding(padding: EdgeInsets.only(bottom: 12),
@@ -464,8 +487,11 @@ class _ParentsHubTab extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 8),
         child: _LinkCard(emoji: r.$1, title: r.$2, body: r.$3, url: r.$4)))
         .toList(),
+      const SizedBox(height: 80),
+      ]),
 
-      const SizedBox(height: 20),
+      // ── Sub-tab 3: Wellbeing (revision time + screen time) ──
+      ListView(padding: const EdgeInsets.all(20), children: [
       const SectionHeader(title: 'Healthy Revision & Screen Time'),
       const SizedBox(height: 12),
       _HubCard(emoji: '⏰', title: 'How much revision is healthy?',
@@ -486,8 +512,9 @@ class _ParentsHubTab extends StatelessWidget {
           'do more for grades than one extra late-night hour of cramming.'),
 
       const SizedBox(height: 80),
-    ],
-  );
+      ]),
+    ])),
+  ]);
 }
 
 // Tappable resource card that opens an external link.
