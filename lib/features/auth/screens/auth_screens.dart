@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
 import '../../../core/services/db_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/providers.dart';
@@ -129,6 +130,27 @@ class WelcomeScreen extends StatelessWidget {
             _Pill(emoji: '🤖', label: 'AI Career Advisor'),
             _Pill(emoji: '👨‍👩‍👧', label: 'Parent Dashboard'),
           ]),
+          const SizedBox(height: 16),
+          // Interactive tour — orange so it stands out for anyone unsure
+          Center(child: GestureDetector(
+            onTap: () => launchUrl(
+              Uri.parse('https://app.supademo.com/demo/cmr94i2lt1zwyqm3ag2rwmk59?utm_source=link'),
+              mode: LaunchMode.externalApplication),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.accentOrange.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: AppColors.accentOrange)),
+              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.play_circle_outline_rounded,
+                  size: 18, color: AppColors.accentOrange),
+                SizedBox(width: 8),
+                Text('How do I use EduPath?', style: TextStyle(
+                  fontFamily: 'Nunito', fontSize: 13.5,
+                  fontWeight: FontWeight.w800, color: AppColors.accentOrange)),
+              ]))),
+          ),
           const Spacer(),
           PrimaryBtn(label: 'Sign Up — It\'s Free!',
             onPressed: () => context.push(AppConstants.routeSignup)),
