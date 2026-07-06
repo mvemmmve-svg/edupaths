@@ -592,19 +592,21 @@ class _ChildProgressScreen extends ConsumerWidget {
     final matchesAsync = ref.watch(_childMatchesProvider(childUserId));
     final interestsAsync = ref.watch(_childInterestsProvider(childUserId));
 
-    return Scaffold(
+    return DefaultTabController(length: 3, child: Scaffold(
       backgroundColor: AppColors.bgPage,
       appBar: AppBar(
         title: Text(childName, style: const TextStyle(
           fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
         leading: GestureDetector(
           onTap: () => Navigator.pop(context), child: const BackBtn())),
-      body: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [
-        // Profile card
-        Container(padding: const EdgeInsets.all(20), decoration: gradientBox(radius: 16),
+      body: Column(children: [
+        // Profile card (fixed header)
+        Padding(padding: const EdgeInsets.all(20), child:
+          Container(padding: const EdgeInsets.all(20), decoration: gradientBox(radius: 16),
           child: Row(children: [
           CircleAvatar(radius: 32, backgroundColor: Colors.white.withOpacity(0.2),
-            child: Text(childName[0].toUpperCase(), style: const TextStyle(
+            child: Text(childName.trim().isEmpty ? '?' : childName.trim()[0].toUpperCase(),
+              style: const TextStyle(
               fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white))),
           const SizedBox(width: 16),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -620,29 +622,26 @@ class _ChildProgressScreen extends ConsumerWidget {
                 fontFamily: 'Nunito', fontSize: 12, color: Colors.white,
                 fontWeight: FontWeight.w700))),
           ])),
-        ])),
-        const SizedBox(height: 20),
-
-        // Interests
-        const SectionHeader(title: 'Their Interests 🎯'),
-        const SizedBox(height: 10),
-        interestsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => const SizedBox(),
-          data: (interests) => interests.isEmpty
-              ? const Text('No interests saved yet.')
-              : Wrap(spacing: 8, runSpacing: 8,
-                  children: interests.map((i) => TagBadge(label: i,
-                    bg: AppColors.primaryPale, fg: AppColors.primaryDark)).toList())),
-
-        const SizedBox(height: 20),
-        // Career matches
-        const SectionHeader(title: 'Top Career Matches 🏆'),
-        const SizedBox(height: 10),
-        matchesAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => const Text('Could not load matches'),
-          data: (matches) => matches.isEmpty
+        ]))),
+        // Sub-tabs
+        const TabBar(
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.textLight,
+          indicatorColor: AppColors.primary,
+          labelStyle: TextStyle(fontFamily: 'Nunito',
+            fontSize: 12, fontWeight: FontWeight.w800),
+          tabs: [
+            Tab(text: '🏆 Matches'),
+            Tab(text: '🗺️ Roadmap'),
+            Tab(text: '🎯 Interests'),
+          ]),
+        Expanded(child: TabBarView(children: [
+          // ── TAB: Matches ──
+          ListView(padding: const EdgeInsets.all(20), children: [
+            matchesAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => const Text('Could not load matches'),
+              data: (matches) => matches.isEmpty
               ? const EmptyState(emoji: '🔍', title: 'No matches yet',
                   subtitle: 'Child needs to complete onboarding')
               : Column(children: matches.map((m) {
@@ -678,38 +677,89 @@ class _ChildProgressScreen extends ConsumerWidget {
                       ],
                     ])));
                 }).toList())),
+          ]),
 
-        // ── Child's roadmap (based on their top match + school year) ──
-        const SizedBox(height: 24),
-        const SectionHeader(title: 'Their Roadmap 🗺️'),
-        const SizedBox(height: 4),
-        Text('How you can support ${childName.split(' ').first} towards their '
-          'top career, step by step.',
-          style: const TextStyle(fontFamily: 'Nunito', fontSize: 12.5,
-            color: AppColors.textMid)),
-        const SizedBox(height: 12),
-        matchesAsync.when(
-          loading: () => const SizedBox(),
-          error: (_, __) => const SizedBox(),
-          data: (matches) {
-            if (matches.isEmpty) {
-              return const Text('A roadmap appears once your child has matches.',
-                style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
-                  color: AppColors.textMid));
-            }
-            final top = (matches.first['career'] ?? matches.first['careers']) as Map? ?? {};
-            final topName = (top['name'] ?? '').toString();
-            if (topName.isEmpty) return const SizedBox();
-            final roadmap = buildCareerRoadmap(
-              careerName: topName,
-              category: top['category'] as String?,
-              schoolYear: schoolYear);
-            return _ChildRoadmapView(roadmap: roadmap, careerName: topName);
-          }),
+          // ── TAB: Roadmap ──
+          ListView(padding: const EdgeInsets.all(20), children: [
+            Text('How you can support ${childName.split(' ').first} towards their '
+              'top career, step by step.',
+              style: const TextStyle(fontFamily: 'Nunito', fontSize: 12.5,
+                color: AppColors.textMid)),
+            const SizedBox(height: 12),
+            matchesAsync.when(
+              loading: () => const SizedBox(),
+              error: (_, __) => const SizedBox(),
+              data: (matches) {
+                if (matches.isEmpty) {
+                  return const Text('A roadmap appears once your child has matches.',
+                    style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
+                      color: AppColors.textMid));
+                }
+                final top = (matches.first['career'] ?? matches.first['careers']) as Map? ?? {};
+                final topName = (top['name'] ?? '').toString();
+                if (topName.isEmpty) return const SizedBox();
+                final roadmap = buildCareerRoadmap(
+                  careerName: topName,
+                  category: top['category'] as String?,
+                  schoolYear: schoolYear);
+                return _ChildRoadmapView(roadmap: roadmap, careerName: topName);
+              }),
+            const SizedBox(height: 40),
+          ]),
 
-        const SizedBox(height: 80),
-      ])),
-    );
+          // ── TAB: Interests (with edit) ──
+          ListView(padding: const EdgeInsets.all(20), children: [
+            Row(children: [
+              const Expanded(child: Text('Interests & Strengths',
+                style: TextStyle(fontFamily: 'Nunito', fontSize: 15,
+                  fontWeight: FontWeight.w800))),
+              TextButton.icon(
+                onPressed: () => _showEditChild(context, ref),
+                icon: const Icon(Icons.edit_rounded, size: 15),
+                label: const Text('Edit', style: TextStyle(fontFamily: 'Nunito',
+                  fontSize: 12, fontWeight: FontWeight.w800))),
+            ]),
+            const SizedBox(height: 4),
+            const Text('Update these to refresh their career matches.',
+              style: TextStyle(fontFamily: 'Nunito', fontSize: 12,
+                color: AppColors.textMid)),
+            const SizedBox(height: 14),
+            interestsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => const SizedBox(),
+              data: (interests) => interests.isEmpty
+                  ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('No interests saved yet.',
+                        style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
+                          color: AppColors.textMid)),
+                      const SizedBox(height: 12),
+                      PrimaryBtn(label: '+ Add interests & strengths',
+                        onPressed: () => _showEditChild(context, ref)),
+                    ])
+                  : Wrap(spacing: 8, runSpacing: 8,
+                      children: interests.map((i) => TagBadge(label: i,
+                        bg: AppColors.primaryPale, fg: AppColors.primaryDark)).toList())),
+            const SizedBox(height: 40),
+          ]),
+        ])),
+      ]),
+    ));
+  }
+
+  void _showEditChild(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context, isScrollControlled: true,
+      backgroundColor: AppColors.bgPage,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _AddChildSheet(
+        editChildId: childUserId,
+        editChildName: childName,
+        onAdded: () {
+          ref.invalidate(_childInterestsProvider(childUserId));
+          ref.invalidate(_childMatchesProvider(childUserId));
+          ref.invalidate(childrenProvider);
+        }));
   }
 }
 
@@ -807,7 +857,9 @@ class _ChildRoadmapView extends StatelessWidget {
 // ══════════════════════════════════════════════
 class _AddChildSheet extends ConsumerStatefulWidget {
   final VoidCallback onAdded;
-  const _AddChildSheet({required this.onAdded});
+  final String? editChildId;
+  final String? editChildName;
+  const _AddChildSheet({required this.onAdded, this.editChildId, this.editChildName});
   @override
   ConsumerState<_AddChildSheet> createState() => _AddChildState();
 }
@@ -823,6 +875,17 @@ class _AddChildState extends ConsumerState<_AddChildSheet> {
 
   static const _years = ['Year 7','Year 8','Year 9','Year 10',
     'Year 11','Year 12','Year 13','Sixth Form'];
+
+  @override
+  void initState() {
+    super.initState();
+    // Edit mode: prefill name and jump straight to interests selection.
+    if (widget.editChildId != null) {
+      _nameCtrl.text = widget.editChildName ?? '';
+      _schoolYear = 'Year 10'; // not editable here; kept from creation
+      _step = 1;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1007,16 +1070,23 @@ class _AddChildState extends ConsumerState<_AddChildSheet> {
         return;
       }
 
-      // One secure call creates the virtual child, saves interests/traits,
-      // links to this parent, and generates matches — all server-side.
-      // (Direct inserts were blocked by RLS / the supabase_uid unique
-      //  constraint, which is why the button appeared to do nothing.)
-      await _sb.rpc('parent_create_child', params: {
-        'p_name': _nameCtrl.text.trim(),
-        'p_school_year': _schoolYear,
-        'p_interest_ids': _selectedInterestIds.toList(),
-        'p_trait_ids': _selectedTraitIds.toList(),
-      });
+      if (widget.editChildId != null) {
+        // Edit mode: replace this child's interests/strengths & regenerate matches
+        await _sb.rpc('parent_update_child', params: {
+          'p_child_id': widget.editChildId,
+          'p_interest_ids': _selectedInterestIds.toList(),
+          'p_trait_ids': _selectedTraitIds.toList(),
+        });
+      } else {
+        // One secure call creates the virtual child, saves interests/traits,
+        // links to this parent, and generates matches — all server-side.
+        await _sb.rpc('parent_create_child', params: {
+          'p_name': _nameCtrl.text.trim(),
+          'p_school_year': _schoolYear,
+          'p_interest_ids': _selectedInterestIds.toList(),
+          'p_trait_ids': _selectedTraitIds.toList(),
+        });
+      }
 
       if (mounted) {
         Navigator.pop(context);
