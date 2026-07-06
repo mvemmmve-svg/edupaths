@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/services/db_service.dart';
@@ -16,51 +17,37 @@ final _sb = Supabase.instance.client;
 final childrenProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   // Watch the UID value (not the raw auth stream) so token-refresh events
   // on web don't restart this load in a loop → infinite spinner.
+  // Fetch children + details + matches via a secure function (parents
+  // can't read their child's users row directly due to RLS).
   final uid = ref.watch(currentUidProvider);
   if (uid == null) return [];
-  final user = await DbService.getUserByUid(uid)
+  final raw = await _sb.rpc('parent_children_full')
       .timeout(const Duration(seconds: 12));
-  if (user == null) return [];
-  final links = await _sb
-      .from('parent_child')
-      .select('id, child_name, child_id')
-      .eq('parent_id', user.id)
-      .timeout(const Duration(seconds: 12));
-  if ((links as List).isEmpty) return [];
-  
-  final result = <Map<String, dynamic>>[];
-  for (final link in links) {
-    final childId = link['child_id'] as String?;
-    Map<String, dynamic>? childUser;
-    if (childId != null) {
-      try {
-        final cu = await _sb.from('users')
-            .select('id, full_name, school_year, onboarding_complete')
-            .eq('id', childId)
-            .maybeSingle();
-        childUser = cu as Map<String, dynamic>?;
-      } catch (_) {}
-    }
-    result.add({
-      'id': link['id'],
-      'child_name': link['child_name'],
-      'child_id': childId,
-      'users': childUser,
-    });
-  }
-  return result;
+  final list = (raw as List?) ?? [];
+  return list.map<Map<String, dynamic>>((c) {
+    final m = (c as Map).cast<String, dynamic>();
+    return {
+      'id': m['link_id'],
+      'child_name': m['child_name'],
+      'child_id': m['child_id'],
+      'users': {
+        'id': m['child_id'],
+        'full_name': m['full_name'],
+        'school_year': m['school_year'],
+        'onboarding_complete': m['onboarding_complete'],
+      },
+      'interests': m['interests'] ?? [],
+      'matches': m['matches'] ?? [],
+    };
+  }).toList();
 });
 
 // ── Child detail provider ─────────────────────
 final _childMatchesProvider = FutureProvider.family<List<Map<String, dynamic>>, String>(
   (ref, userId) async {
-    final res = await _sb
-        .from('matches')
-        .select('match_score, match_reason, career_id, careers(name, avg_salary, category)')
-        .eq('firebase_uid', userId)
-        .order('match_score', ascending: false)
-        .limit(10);
-    return (res as List).cast<Map<String, dynamic>>();
+    final res = await _sb.rpc('parent_child_matches',
+        params: {'p_child_id': userId});
+    return ((res as List?) ?? []).cast<Map<String, dynamic>>();
   });
 
 final _childInterestsProvider = FutureProvider.family<List<String>, String>(
@@ -446,9 +433,93 @@ class _ParentsHubTab extends StatelessWidget {
           ])),
         ])))),
 
+      const SizedBox(height: 20),
+      const SectionHeader(title: 'Support by Exam Board'),
+      const SizedBox(height: 4),
+      const Padding(padding: EdgeInsets.only(bottom: 12),
+        child: Text('Check which board each subject uses (ask the school), then '
+          'use their free past papers and specifications.',
+          style: TextStyle(fontFamily: 'Nunito', fontSize: 12.5,
+            color: AppColors.textMid, height: 1.4))),
+      ...[
+        ('AQA', 'The largest board in England. Free past papers and mark schemes on their site.', 'aqa.org.uk'),
+        ('OCR', 'Common for sciences and computing. Past papers and specs are free online.', 'ocr.org.uk'),
+        ('Edexcel (Pearson)', 'Popular for Maths. Past papers plus the excellent free "Save My Exams" resources.', 'qualifications.pearson.com'),
+        ('WJEC / Eduqas', 'Used across Wales and parts of England, especially English and Humanities.', 'eduqas.co.uk'),
+      ].map((b) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: _LinkCard(emoji: '📄', title: b.$1, body: b.$2, url: b.$3)))
+        .toList(),
+
+      const SizedBox(height: 20),
+      const SectionHeader(title: 'Books & Revision Resources'),
+      const SizedBox(height: 12),
+      ...[
+        ('📘', 'CGP Revision Guides', 'The classic GCSE & A-Level revision books — concise and student-favourite.', 'cgpbooks.co.uk'),
+        ('📺', 'BBC Bitesize', 'Free revision by subject, level and exam board. Videos, notes and quizzes.', 'bbc.co.uk/bitesize'),
+        ('✅', 'Save My Exams', 'Topic notes and past-paper questions by exam board (free + paid).', 'savemyexams.com'),
+        ('🎥', 'Seneca Learning', 'Free smart revision that adapts to your child. Great for quick recall.', 'senecalearning.com'),
+        ('🛒', 'Amazon: revision guides', 'Search CGP, Oxford or Collins guides for your child\'s exact subjects.', 'amazon.co.uk'),
+      ].map((r) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: _LinkCard(emoji: r.$1, title: r.$2, body: r.$3, url: r.$4)))
+        .toList(),
+
+      const SizedBox(height: 20),
+      const SectionHeader(title: 'Healthy Revision & Screen Time'),
+      const SizedBox(height: 12),
+      _HubCard(emoji: '⏰', title: 'How much revision is healthy?',
+        body: 'A good guide: Years 10–11 around 1–2 hours on a school night '
+          'and 3–4 hours a day in the holidays; Years 12–13 around 2–3 hours '
+          'on a school night. Short focused blocks (25–40 mins) with breaks '
+          'beat long marathons. Quality over quantity — and never at the '
+          'expense of sleep.'),
+      _HubCard(emoji: '📱', title: 'Screen time & phones',
+        body: 'Phones are the biggest revision distraction. A simple win: '
+          'agree the phone stays in another room during revision blocks. '
+          'Aim to switch screens off ~1 hour before bed — blue light and '
+          'social media harm the sleep that memory depends on. Downtime and '
+          'gaming are fine once the agreed revision is done.'),
+      _HubCard(emoji: '😴', title: 'Sleep, food & breaks',
+        body: 'Teenagers need 8–10 hours\' sleep — it\'s when the brain locks '
+          'in what they revised. Regular meals, water and fresh-air breaks '
+          'do more for grades than one extra late-night hour of cramming.'),
+
       const SizedBox(height: 80),
     ],
   );
+}
+
+// Tappable resource card that opens an external link.
+class _LinkCard extends StatelessWidget {
+  final String emoji, title, body, url;
+  const _LinkCard({required this.emoji, required this.title,
+    required this.body, required this.url});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: () => launchUrl(
+      Uri.parse(url.startsWith('http') ? url : 'https://$url'),
+      mode: LaunchMode.externalApplication),
+    child: EduCard(child: Row(crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+      Text(emoji, style: const TextStyle(fontSize: 22)),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+        Text(title, style: const TextStyle(fontFamily: 'Nunito',
+          fontSize: 13, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 2),
+        Text(body, style: const TextStyle(fontFamily: 'Nunito',
+          fontSize: 12, color: AppColors.textMid, height: 1.35)),
+        const SizedBox(height: 3),
+        Row(children: [
+          Text(url, style: const TextStyle(fontFamily: 'Nunito',
+            fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary)),
+          const SizedBox(width: 4),
+          const Icon(Icons.open_in_new_rounded, size: 11, color: AppColors.primary),
+        ]),
+      ])),
+    ])));
 }
 
 class _HubCard extends StatefulWidget {
