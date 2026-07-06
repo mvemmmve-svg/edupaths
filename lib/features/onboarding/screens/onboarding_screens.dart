@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/services/db_service.dart';
 import '../../../core/services/providers.dart';
@@ -58,6 +59,27 @@ class OnboardingStartScreen extends ConsumerWidget {
               ]),
             ),
           )),
+          const SizedBox(height: 4),
+          // Interactive tour link — stands out in accent colour
+          Center(child: GestureDetector(
+            onTap: () => launchUrl(
+              Uri.parse('https://app.supademo.com/demo/cmr94i2lt1zwyqm3ag2rwmk59?utm_source=link'),
+              mode: LaunchMode.externalApplication),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.accentOrange.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: AppColors.accentOrange)),
+              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.play_circle_outline_rounded,
+                  size: 18, color: AppColors.accentOrange),
+                SizedBox(width: 8),
+                Text('How do I use EduPath?', style: TextStyle(
+                  fontFamily: 'Nunito', fontSize: 13.5,
+                  fontWeight: FontWeight.w800, color: AppColors.accentOrange)),
+              ]),
+            ))),
           const Spacer(),
           PrimaryBtn(label: "Let's Go! 🚀",
             onPressed: () => context.push(AppConstants.routeOnboardingInterests)),
