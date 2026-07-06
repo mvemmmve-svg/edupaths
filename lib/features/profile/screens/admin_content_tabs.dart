@@ -738,3 +738,352 @@ class _QualEditorState extends ConsumerState<_QualEditor> {
           ]))));
   }
 }
+
+// ══════════════════════════════════════════════
+// 🏛️ INSTITUTIONS TAB — edit/delete (fixes typos you couldn't before)
+// ══════════════════════════════════════════════
+final adminInstitutionsProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final res = await _sb.from('institutions')
+      .select('id, name, type, city, location, website_url').order('name');
+  return (res as List).cast<Map<String, dynamic>>();
+});
+
+class InstitutionsAdminTab extends ConsumerStatefulWidget {
+  const InstitutionsAdminTab({super.key});
+  @override
+  ConsumerState<InstitutionsAdminTab> createState() => _InstitutionsAdminTabState();
+}
+
+class _InstitutionsAdminTabState extends ConsumerState<InstitutionsAdminTab> {
+  String _search = '';
+  @override
+  Widget build(BuildContext context) {
+    final asyncInsts = ref.watch(adminInstitutionsProvider);
+    return asyncInsts.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => ErrorView(message: e.toString()),
+      data: (insts) {
+        var list = insts;
+        if (_search.isNotEmpty) {
+          list = insts.where((it) => (it['name'] ?? '').toString()
+              .toLowerCase().contains(_search.toLowerCase())).toList();
+        }
+        return Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(children: [
+              Expanded(child: TextField(
+                onChanged: (v) => setState(() => _search = v),
+                decoration: InputDecoration(
+                  hintText: 'Search ${insts.length} institutions…',
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10)))),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: () => _openEditor(context, null),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('Add'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  textStyle: const TextStyle(fontFamily: 'Nunito',
+                    fontSize: 12, fontWeight: FontWeight.w800))),
+            ])),
+          Expanded(child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: list.length,
+            itemBuilder: (_, i) {
+              final it = list[i];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: EduCard(
+                  onTap: () => _openEditor(context, it),
+                  child: Row(children: [
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(it['name'] ?? '', style: const TextStyle(
+                        fontFamily: 'Nunito', fontSize: 13,
+                        fontWeight: FontWeight.w800)),
+                      Text('${it['type'] ?? '—'}  ·  ${it['city'] ?? it['location'] ?? 'no location'}',
+                        style: const TextStyle(fontFamily: 'Nunito',
+                          fontSize: 11, color: AppColors.textMid)),
+                    ])),
+                    const Icon(Icons.edit_rounded, size: 16,
+                      color: AppColors.textLight),
+                  ])));
+            })),
+        ]);
+      });
+  }
+
+  void _openEditor(BuildContext context, Map<String, dynamic>? inst) {
+    showModalBottomSheet(
+      context: context, isScrollControlled: true,
+      backgroundColor: AppColors.bgPage,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _InstitutionEditor(
+        inst: inst,
+        onSaved: () => ref.invalidate(adminInstitutionsProvider)));
+  }
+}
+
+class _InstitutionEditor extends ConsumerStatefulWidget {
+  final Map<String, dynamic>? inst;
+  final VoidCallback onSaved;
+  const _InstitutionEditor({required this.inst, required this.onSaved});
+  @override
+  ConsumerState<_InstitutionEditor> createState() => _InstitutionEditorState();
+}
+
+class _InstitutionEditorState extends ConsumerState<_InstitutionEditor> {
+  late final TextEditingController _name, _city, _location, _url;
+  late String _type;
+  bool _saving = false;
+  bool get isNew => widget.inst == null;
+  String? get id => widget.inst?['id'] as String?;
+
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: widget.inst?['name'] ?? '');
+    _city = TextEditingController(text: widget.inst?['city'] ?? '');
+    _location = TextEditingController(text: widget.inst?['location'] ?? '');
+    _url = TextEditingController(text: widget.inst?['website_url'] ?? '');
+    _type = widget.inst?['type'] as String? ?? 'University';
+  }
+
+  Future<void> _save() async {
+    if (_name.text.trim().isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      final data = {
+        'name': _name.text.trim(),
+        'type': _type,
+        'city': _city.text.trim(),
+        'location': _location.text.trim(),
+        'website_url': _url.text.trim(),
+      };
+      if (isNew) {
+        await _sb.from('institutions').insert(data);
+      } else {
+        await _sb.from('institutions').update(data).eq('id', id!);
+      }
+      widget.onSaved();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Saved ✓'), backgroundColor: AppColors.success));
+        if (isNew) Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Error: $e'), backgroundColor: AppColors.error));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _delete() async {
+    // Block delete if courses still reference it (would orphan them)
+    final courses = await _sb.from('courses')
+        .select('id').eq('institution_id', id!).limit(1);
+    if ((courses as List).isNotEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Can\'t delete — courses still use this institution. '
+          'Reassign or delete those courses first.'),
+        backgroundColor: AppColors.error));
+      return;
+    }
+    final sure = await showDialog<bool>(context: context, builder: (ctx) =>
+      AlertDialog(
+        title: const Text('Delete institution?', style: TextStyle(
+          fontFamily: 'Nunito', fontWeight: FontWeight.w900)),
+        content: Text('Remove "${_name.text}"?',
+          style: const TextStyle(fontFamily: 'Nunito', fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete',
+              style: TextStyle(color: AppColors.error))),
+        ]));
+    if (sure != true) return;
+    await _sb.from('institutions').delete().eq('id', id!);
+    widget.onSaved();
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(isNew ? 'Add Institution 🏛️' : 'Edit Institution 🏛️',
+              style: const TextStyle(fontFamily: 'Nunito', fontSize: 18,
+                fontWeight: FontWeight.w900))),
+            IconButton(icon: const Icon(Icons.close_rounded),
+              onPressed: () => Navigator.pop(context)),
+          ]),
+          const SizedBox(height: 8),
+          TextField(controller: _name, decoration: const InputDecoration(
+            labelText: 'Name')),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: const ['University','College','Apprenticeship','Sixth Form','Other']
+                .contains(_type) ? _type : 'Other',
+            decoration: const InputDecoration(labelText: 'Type'),
+            items: const ['University','College','Apprenticeship','Sixth Form','Other']
+                .map((t) => DropdownMenuItem(value: t, child: Text(t,
+                  style: const TextStyle(fontFamily: 'Nunito', fontSize: 13)))).toList(),
+            onChanged: (v) => setState(() => _type = v ?? _type)),
+          const SizedBox(height: 10),
+          TextField(controller: _city, decoration: const InputDecoration(
+            labelText: 'City')),
+          const SizedBox(height: 10),
+          TextField(controller: _location, decoration: const InputDecoration(
+            labelText: 'Region / location')),
+          const SizedBox(height: 10),
+          TextField(controller: _url, decoration: const InputDecoration(
+            labelText: 'Website URL')),
+          const SizedBox(height: 16),
+          PrimaryBtn(label: _saving ? 'Saving…' : (isNew ? 'Create' : 'Save Changes'),
+            onPressed: _saving ? null : _save),
+          if (!isNew) Center(child: TextButton(
+            onPressed: _saving ? null : _delete,
+            child: const Text('🗑 Delete this institution',
+              style: TextStyle(fontFamily: 'Nunito', fontSize: 12,
+                fontWeight: FontWeight.w800, color: AppColors.error)))),
+          const SizedBox(height: 20),
+        ])));
+  }
+}
+
+// ══════════════════════════════════════════════
+// 📢 BROADCAST TAB — send an announcement to all users
+// ══════════════════════════════════════════════
+final adminBroadcastsProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final res = await _sb.from('notifications')
+      .select('id, title, body, category, created_at')
+      .eq('is_global', true)
+      .order('created_at', ascending: false).limit(20);
+  return (res as List).cast<Map<String, dynamic>>();
+});
+
+class BroadcastAdminTab extends ConsumerStatefulWidget {
+  const BroadcastAdminTab({super.key});
+  @override
+  ConsumerState<BroadcastAdminTab> createState() => _BroadcastAdminTabState();
+}
+
+class _BroadcastAdminTabState extends ConsumerState<BroadcastAdminTab> {
+  final _title = TextEditingController();
+  final _body = TextEditingController();
+  String _category = 'general';
+  bool _sending = false;
+
+  Future<void> _send() async {
+    if (_title.text.trim().isEmpty || _body.text.trim().isEmpty) return;
+    final sure = await showDialog<bool>(context: context, builder: (ctx) =>
+      AlertDialog(
+        title: const Text('Send to everyone?', style: TextStyle(
+          fontFamily: 'Nunito', fontWeight: FontWeight.w900)),
+        content: const Text('This notification appears for ALL users. '
+          'Send it now?', style: TextStyle(fontFamily: 'Nunito', fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Send')),
+        ]));
+    if (sure != true) return;
+    setState(() => _sending = true);
+    try {
+      await _sb.from('notifications').insert({
+        'title': _title.text.trim(),
+        'body': _body.text.trim(),
+        'category': _category,
+        'is_global': true,
+      });
+      _title.clear(); _body.clear();
+      ref.invalidate(adminBroadcastsProvider);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('📢 Broadcast sent to all users!'),
+        backgroundColor: AppColors.success));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Error: $e'), backgroundColor: AppColors.error));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final recent = ref.watch(adminBroadcastsProvider);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Send an announcement 📢', style: TextStyle(
+          fontFamily: 'Nunito', fontSize: 16, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 4),
+        const Text('Goes to every user\'s notification bell.',
+          style: TextStyle(fontFamily: 'Nunito', fontSize: 12.5,
+            color: AppColors.textMid)),
+        const SizedBox(height: 14),
+        TextField(controller: _title, decoration: const InputDecoration(
+          labelText: 'Title (e.g. New feature: Career Quiz!)')),
+        const SizedBox(height: 10),
+        TextField(controller: _body, maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Message')),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          value: _category,
+          decoration: const InputDecoration(labelText: 'Category'),
+          items: const ['general','feature','deadline','tip']
+              .map((c) => DropdownMenuItem(value: c, child: Text(c,
+                style: const TextStyle(fontFamily: 'Nunito', fontSize: 13)))).toList(),
+          onChanged: (v) => setState(() => _category = v ?? 'general')),
+        const SizedBox(height: 16),
+        PrimaryBtn(label: _sending ? 'Sending…' : '📢 Send to all users',
+          onPressed: _sending ? null : _send),
+        const Divider(height: 32),
+        const Text('Recent broadcasts', style: TextStyle(
+          fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 10),
+        recent.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => ErrorView(message: e.toString()),
+          data: (list) => list.isEmpty
+            ? const Text('None yet.', style: TextStyle(fontFamily: 'Nunito',
+                fontSize: 12, color: AppColors.textMid))
+            : Column(children: list.map((n) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: EduCard(child: Row(children: [
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(n['title'] ?? '', style: const TextStyle(
+                      fontFamily: 'Nunito', fontSize: 13,
+                      fontWeight: FontWeight.w800)),
+                    Text(n['body'] ?? '', maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontFamily: 'Nunito',
+                        fontSize: 11.5, color: AppColors.textMid)),
+                  ])),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline_rounded,
+                      size: 18, color: AppColors.error),
+                    onPressed: () async {
+                      await _sb.from('notifications').delete().eq('id', n['id']);
+                      ref.invalidate(adminBroadcastsProvider);
+                    }),
+                ])))).toList())),
+      ]));
+  }
+}

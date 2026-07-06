@@ -29,6 +29,7 @@ import '../../shared/widgets/main_shell.dart';
 const _loginRequired = {
   '/saved', '/edubot', '/roadmap-plan', '/support', '/admin-inbox', '/discover',
   '/notifications', '/who-are-you', '/checkout', '/parent', '/admin',
+  '/school-advisor', '/join-school', '/career-quiz',
 };
 
 // Routes that logged-in users should not see
@@ -73,10 +74,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         return AppConstants.routeProfile;
       }
 
-      // If not logged in and on a protected page → go to splash
-      // Only exact match — never startsWith — prevents detail page flicker
+      // If not logged in and on a protected page → go to login.
+      // (Not splash: splash is a cold-start-only screen and shows blank
+      //  when reached via browser back/forward on web.)
       if (!isLoggedIn && _loginRequired.contains(loc)) {
-        return AppConstants.routeSplash;
+        return AppConstants.routeLogin;
       }
 
       return null;

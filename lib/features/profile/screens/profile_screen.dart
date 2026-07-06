@@ -352,13 +352,42 @@ class ProfileScreen extends ConsumerWidget {
             style: TextStyle(fontFamily: 'Nunito', fontSize: 14,
               color: AppColors.textMid)),
           const SizedBox(height: 16),
-          // Direct line to the team — messages arrive in the admin's
-          // Support Inbox and replies come back right here in the app.
-          PrimaryBtn(label: '💬 Message Support', onPressed: () {
-            Navigator.pop(ctx);
-            final loggedIn =
-                Supabase.instance.client.auth.currentUser != null;
-            context.push(loggedIn ? '/support' : AppConstants.routeLogin);
+          // Live in-app support is a Premium perk. Free users still get the
+          // email addresses below, so they're never fully stuck.
+          Consumer(builder: (c, r, _) {
+            final isPrem = r.watch(isPremiumProvider).valueOrNull ?? false;
+            if (isPrem) {
+              return PrimaryBtn(label: '💬 Message Support', onPressed: () {
+                Navigator.pop(ctx);
+                final loggedIn =
+                    Supabase.instance.client.auth.currentUser != null;
+                context.push(loggedIn ? '/support' : AppConstants.routeLogin);
+              });
+            }
+            return GestureDetector(
+              onTap: () { Navigator.pop(ctx); c.push(AppConstants.routePricing); },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryPale,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.3))),
+                child: const Row(children: [
+                  Text('💬', style: TextStyle(fontSize: 20)),
+                  SizedBox(width: 12),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Live Chat Support', style: TextStyle(
+                      fontFamily: 'Nunito', fontSize: 14,
+                      fontWeight: FontWeight.w900)),
+                    Text('Priority in-app replies — a Premium perk. Or email us below.',
+                      style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5,
+                        color: AppColors.textMid)),
+                  ])),
+                  Icon(Icons.lock_rounded, size: 16, color: AppColors.textLight),
+                ]),
+              ));
           }),
           const SizedBox(height: 16),
           EduCard(child: Column(children: [

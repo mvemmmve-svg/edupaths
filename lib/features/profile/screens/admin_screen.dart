@@ -24,7 +24,7 @@ final adminUsersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) asyn
 });
 
 final adminSchoolsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final res = await _sb.from('schools').select().order('created_at', ascending: false);
+  final res = await _sb.from('schools').select().order('name', ascending: true);
   return (res as List).cast<Map<String, dynamic>>();
 });
 
@@ -54,7 +54,7 @@ class _AdminState extends ConsumerState<AdminScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 6, vsync: this);
+    _tabs = TabController(length: 8, vsync: this);
   }
 
   @override
@@ -87,6 +87,8 @@ class _AdminState extends ConsumerState<AdminScreen>
             Tab(text: '📋 Quals'),
             Tab(text: '🏫 Schools'),
             Tab(text: '🎓 Courses'),
+            Tab(text: '🏛️ Places'),
+            Tab(text: '📢 Broadcast'),
             Tab(text: '📊 Stats'),
           ],
         ),
@@ -97,6 +99,8 @@ class _AdminState extends ConsumerState<AdminScreen>
         const QualsAdminTab(),
         _SchoolsTab(),
         _CoursesTab(),
+        const InstitutionsAdminTab(),
+        const BroadcastAdminTab(),
         _StatsTab(),
       ]),
     );
@@ -114,6 +118,7 @@ class _UsersTab extends ConsumerStatefulWidget {
 class _UsersTabState extends ConsumerState<_UsersTab> {
   String _search = '';
   String _filter = 'All'; // All, Free, Premium, Advisor, Admin
+  bool _sortAz = true; // A–Z by name
 
   @override
   Widget build(BuildContext context) {
@@ -136,6 +141,14 @@ class _UsersTabState extends ConsumerState<_UsersTab> {
               (_filter == 'Free' && (u['subscriptions'] as List?)?.isEmpty != false);
           return matchSearch && matchFilter;
         }).toList();
+
+        // Sort by display name (falls back to email), A–Z or Z–A
+        String key(Map<String, dynamic> u) =>
+            ((u['full_name'] as String?)?.trim().isNotEmpty == true
+                ? u['full_name'] as String
+                : (u['email'] as String? ?? '')).toLowerCase();
+        filtered.sort((a, b) =>
+            _sortAz ? key(a).compareTo(key(b)) : key(b).compareTo(key(a)));
 
         return Column(children: [
           // Search
@@ -180,6 +193,18 @@ class _UsersTabState extends ConsumerState<_UsersTab> {
               Text('${filtered.length} users',
                 style: const TextStyle(fontFamily: 'Nunito', fontSize: 12,
                   color: AppColors.textMid)),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => setState(() => _sortAz = !_sortAz),
+                child: Row(children: [
+                  Icon(_sortAz ? Icons.arrow_downward_rounded
+                      : Icons.arrow_upward_rounded,
+                    size: 14, color: AppColors.primary),
+                  const SizedBox(width: 2),
+                  Text(_sortAz ? 'A–Z' : 'Z–A', style: const TextStyle(
+                    fontFamily: 'Nunito', fontSize: 12,
+                    fontWeight: FontWeight.w800, color: AppColors.primary)),
+                ])),
             ])),
           // User list
           Expanded(child: ListView.builder(
@@ -321,7 +346,8 @@ class _UserCardState extends ConsumerState<_UserCard> {
               backgroundColor: isAdmin
                   ? const Color(0xFF1E0A3C)
                   : AppColors.primaryPale,
-              child: Text(name[0].toUpperCase(), style: TextStyle(
+              child: Text(name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase(),
+                style: TextStyle(
                 fontFamily: 'Nunito', fontWeight: FontWeight.w900,
                 fontSize: 14,
                 color: isAdmin ? Colors.white : AppColors.primary))),
@@ -349,7 +375,9 @@ class _UserCardState extends ConsumerState<_UserCard> {
           // Expanded controls
           if (_expanded) ...[
             const Divider(height: 16),
-            // Info
+            // Full details — visible on tap
+            _InfoRow('Name', name),
+            _InfoRow('Email', email),
             _InfoRow('School Year', schoolYear.isEmpty ? 'Not set' : schoolYear),
             _InfoRow('Role', roleType),
             _InfoRow('Onboarding', onboarded ? '✅ Complete' : '⏳ Pending'),
@@ -884,8 +912,14 @@ void showImportCourseSheet(BuildContext context, VoidCallback onSaved) {
       child: StatefulBuilder(builder: (ctx2, setSt) {
         return SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Import Course 🎓', style: TextStyle(fontFamily: 'Nunito',
-            fontSize: 18, fontWeight: FontWeight.w900)),
+          Row(children: [
+            const Expanded(child: Text('Import Course 🎓', style: TextStyle(
+              fontFamily: 'Nunito', fontSize: 18, fontWeight: FontWeight.w900))),
+            IconButton(
+              icon: const Icon(Icons.close_rounded, color: AppColors.textMid),
+              tooltip: 'Cancel',
+              onPressed: () => Navigator.pop(ctx)),
+          ]),
           _hint('Full course title including the qualification level — e.g. "BSc Computer Science" or "Level 6 Digital Marketing Apprenticeship".'),
           TextField(controller: title, decoration: const InputDecoration(hintText: 'Course title *')),
           _hint('Which institution runs it? If it is missing, close this and use "Add Institution" first.'),
@@ -942,6 +976,11 @@ void showImportCourseSheet(BuildContext context, VoidCallback onSaved) {
                 content: Text('Could not save: $e')));
             }
           }),
+          Center(child: TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(
+              fontFamily: 'Nunito', fontSize: 13,
+              fontWeight: FontWeight.w700, color: AppColors.textMid)))),
           const SizedBox(height: 8),
         ]));
       })));
