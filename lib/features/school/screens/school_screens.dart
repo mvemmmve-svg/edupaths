@@ -12,22 +12,34 @@ final _sb = Supabase.instance.client;
 
 // Providers
 final schoolProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
-  ref.watch(authStateProvider);
-  final uid = _sb.auth.currentUser?.id;
+  // Watch the UID VALUE, not the raw auth event stream — on web the
+  // stream fires on every session-restore/token-refresh event, which
+  // restarted this load in a loop and left the page on an infinite
+  // spinner (especially on desktop browsers with long-lived sessions).
+  final uid = ref.watch(currentUidProvider);
   if (uid == null) return null;
-  final user = await DbService.getUserByUid(uid);
-  if (user == null) return null;
-  final res = await _sb.from('school_advisors')
-      .select('id, role, school_id, schools(*)')
-      .eq('user_id', user.id)
-      .maybeSingle();
-  return res;
+  try {
+    final user = await DbService.getUserByUid(uid)
+        .timeout(const Duration(seconds: 12));
+    if (user == null) return null;
+    final res = await _sb.from('school_advisors')
+        .select('id, role, school_id, schools(*)')
+        .eq('user_id', user.id)
+        .maybeSingle()
+        .timeout(const Duration(seconds: 12));
+    return res;
+  } on Exception {
+    // Surface a real error state instead of hanging forever
+    rethrow;
+  }
 });
 
 final cohortsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final school = await ref.watch(schoolProvider.future);
   if (school == null) return [];
-  final schoolId = (school['schools'] as Map)['id'];
+  final schoolsMap = school['schools'];
+  if (schoolsMap == null) return [];
+  final schoolId = (schoolsMap as Map)['id'];
   final res = await _sb.from('school_cohorts')
       .select().eq('school_id', schoolId)
       .order('created_at', ascending: false);
@@ -52,7 +64,24 @@ class SchoolAdvisorScreen extends ConsumerWidget {
     final schoolAsync = ref.watch(schoolProvider);
     return schoolAsync.when(
       loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
+      error: (e, _) => Scaffold(body: Center(child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🏫', style: TextStyle(fontSize: 44)),
+          const SizedBox(height: 12),
+          const Text('Couldn\'t load the advisor portal',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontFamily: 'Nunito', fontSize: 17,
+              fontWeight: FontWeight.w900, color: AppColors.textDark)),
+          const SizedBox(height: 6),
+          Text('$e', textAlign: TextAlign.center, maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontFamily: 'Nunito', fontSize: 12,
+              color: AppColors.textMid)),
+          const SizedBox(height: 16),
+          PrimaryBtn(label: 'Try again',
+            onPressed: () => ref.invalidate(schoolProvider)),
+        ])))),
       data: (school) => school == null
           ? const SchoolSetupScreen()
           : SchoolDashboard(school: school),
@@ -280,7 +309,11 @@ class _SchoolDashboardState extends ConsumerState<SchoolDashboard>
 
   @override
   Widget build(BuildContext context) {
-    final schoolData = widget.school['schools'] as Map<String, dynamic>;
+    // Guard: if the joined school record is missing (e.g. row-level
+    // security or a broken link), fall back to setup rather than crashing.
+    final rawSchool = widget.school['schools'];
+    if (rawSchool == null) return const SchoolSetupScreen();
+    final schoolData = (rawSchool as Map).cast<String, dynamic>();
     final cohortsAsync = ref.watch(cohortsProvider);
     return Scaffold(
       backgroundColor: AppColors.bgPage,
