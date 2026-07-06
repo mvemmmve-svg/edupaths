@@ -27,11 +27,11 @@ void _showAllMatches(BuildContext context, WidgetRef ref) {
           decoration: BoxDecoration(color: AppColors.border,
             borderRadius: BorderRadius.circular(2))),
         const Padding(padding: EdgeInsets.symmetric(horizontal: 20),
-          child: Text('All Your Matches 🎯', style: TextStyle(
+          child: Text('All Your Matches ðŸŽ¯', style: TextStyle(
             fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w900))),
         const SizedBox(height: 8),
         Expanded(child: matches.isEmpty
-          ? const EmptyState(emoji: '🔍', title: 'No matches yet',
+          ? const EmptyState(emoji: 'ðŸ”', title: 'No matches yet',
               subtitle: 'Complete onboarding to see your career matches')
           : ListView.separated(
             controller: ctrl,
@@ -74,6 +74,20 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userAsync    = ref.watch(appUserProvider);
+
+    // Parents get a different app: the Home tab takes them to the parent
+    // dashboard, not the student view. This also fixes being unable to
+    // return to the dashboard after tapping Home.
+    final role = userAsync.valueOrNull?.roleType;
+    if (role == 'parent') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) context.go(AppConstants.routeParentDashboard);
+      });
+      return const Scaffold(
+        backgroundColor: AppColors.bgPage,
+        body: Center(child: CircularProgressIndicator()));
+    }
+
     final matchesAsync = ref.watch(matchesProvider);
     final careersAsync = ref.watch(allCareersProvider);
     final isPrem       = ref.watch(isPremiumProvider).valueOrNull ?? false;
@@ -92,7 +106,7 @@ class HomeScreen extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-            // ── Header ───────────────────────────────
+            // â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // One row, everything vertically centred. The greeting flexes
             // and ellipsises; the streak pill, bell and avatar are ALL
             // exactly 40px tall so nothing sits off-baseline, and they
@@ -106,7 +120,7 @@ class HomeScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Hi, ${user?.firstName ?? 'Explorer'}! 👋',
+                    Text('Hi, ${user?.firstName ?? 'Explorer'}! ðŸ‘‹',
                       maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontFamily: 'Nunito', fontSize: 14,
                         color: AppColors.textMid, fontWeight: FontWeight.w600)),
@@ -119,7 +133,7 @@ class HomeScreen extends ConsumerWidget {
                   ]),
               )),
               const SizedBox(width: 12),
-              // 🔥 streak chip — consecutive days in the app
+              // ðŸ”¥ streak chip â€” consecutive days in the app
               Consumer(builder: (c, r, _) {
                 final n = r.watch(streakProvider).valueOrNull ?? 0;
                 if (n < 2) return const SizedBox();
@@ -134,7 +148,7 @@ class HomeScreen extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: AppColors.accentOrange.withOpacity(0.4))),
-                    child: Text('🔥 $n', style: const TextStyle(
+                    child: Text('ðŸ”¥ $n', style: const TextStyle(
                       fontFamily: 'Nunito', fontSize: 13,
                       fontWeight: FontWeight.w800,
                       color: AppColors.accentOrange))));
@@ -183,7 +197,7 @@ class HomeScreen extends ConsumerWidget {
 
             const SizedBox(height: 16),
 
-            // ── Upgrade banner ───────────────────────
+            // â”€â”€ Upgrade banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (!isPrem) GestureDetector(
               onTap: () => context.push(AppConstants.routePricing),
               child: Container(
@@ -195,14 +209,14 @@ class HomeScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: AppColors.accentYellow.withOpacity(0.4))),
                 child: Row(children: [
-                  const Text('⭐', style: TextStyle(fontSize: 20)),
+                  const Text('â­', style: TextStyle(fontSize: 20)),
                   const SizedBox(width: 10),
                   const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                     Text('Unlock unlimited matches!',
                       style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
                         fontWeight: FontWeight.w800, color: AppColors.textDark)),
-                    Text('Upgrade to Premium — 7-day free trial',
+                    Text('Upgrade to Premium â€” 7-day free trial',
                       style: TextStyle(fontFamily: 'Nunito', fontSize: 11,
                         color: AppColors.textMid)),
                   ])),
@@ -213,7 +227,7 @@ class HomeScreen extends ConsumerWidget {
 
             const SizedBox(height: 14),
 
-            // ── Discover deck entry (interactivity) ──
+            // â”€â”€ Discover deck entry (interactivity) â”€â”€
             // Deliberately the loudest thing on the page: hot gradient,
             // fanned card-deck graphic and a gentle pulse so it reads as
             // a GAME, not another list row.
@@ -221,7 +235,7 @@ class HomeScreen extends ConsumerWidget {
 
             const SizedBox(height: 14),
 
-            // ── Career IQ quiz entry ──
+            // â”€â”€ Career IQ quiz entry â”€â”€
             GestureDetector(
               onTap: () => context.push('/career-quiz'),
               child: Container(
@@ -231,7 +245,7 @@ class HomeScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: AppColors.border)),
                 child: const Row(children: [
-                  Text('🧠', style: TextStyle(fontSize: 22)),
+                  Text('ðŸ§ ', style: TextStyle(fontSize: 22)),
                   SizedBox(width: 10),
                   Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -249,7 +263,7 @@ class HomeScreen extends ConsumerWidget {
 
             const SizedBox(height: 14),
 
-            // ── Career of the Day (rotates daily) ──
+            // â”€â”€ Career of the Day (rotates daily) â”€â”€
             Consumer(builder: (c, r, _) {
               final careers = r.watch(allCareersProvider).valueOrNull;
               if (careers == null || careers.isEmpty) return const SizedBox();
@@ -267,7 +281,7 @@ class HomeScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AppColors.border)),
                   child: Row(children: [
-                    const Text('📅', style: TextStyle(fontSize: 20)),
+                    const Text('ðŸ“…', style: TextStyle(fontSize: 20)),
                     const SizedBox(width: 10),
                     Expanded(child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -289,7 +303,7 @@ class HomeScreen extends ConsumerWidget {
 
             const SizedBox(height: 14),
 
-            // ── Top AI Match Hero ────────────────────
+            // â”€â”€ Top AI Match Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             matchesAsync.when(
               loading: () => const ShimmerCard(height: 150),
               error: (_, __) => const SizedBox(),
@@ -302,7 +316,7 @@ class HomeScreen extends ConsumerWidget {
                       padding: const EdgeInsets.all(20),
                       decoration: gradientBox(radius: 20),
                       child: Column(children: [
-                        const Text('🎯', style: TextStyle(fontSize: 32)),
+                        const Text('ðŸŽ¯', style: TextStyle(fontSize: 32)),
                         const SizedBox(height: 12),
                         const Text('Your matches are almost ready',
                           style: TextStyle(fontFamily: 'Nunito', fontSize: 16,
@@ -346,7 +360,7 @@ class HomeScreen extends ConsumerWidget {
                         Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(999)),
-                          child: const Text('✨ AI Top Pick',
+                          child: const Text('âœ¨ AI Top Pick',
                             style: TextStyle(fontFamily: 'Nunito', fontSize: 11,
                               fontWeight: FontWeight.w800, color: Colors.white))),
                         const Spacer(),
@@ -361,9 +375,9 @@ class HomeScreen extends ConsumerWidget {
                         style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
                           color: Colors.white.withOpacity(0.75))),
                       const SizedBox(height: 8),
-                      // Why we matched you — right on the card
+                      // Why we matched you â€” right on the card
                       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        const Text('✨ ', style: TextStyle(fontSize: 12)),
+                        const Text('âœ¨ ', style: TextStyle(fontSize: 12)),
                         Flexible(child: Text(friendlyMatchReason(top.matchReason),
                           maxLines: 2, overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontFamily: 'Nunito',
@@ -376,7 +390,7 @@ class HomeScreen extends ConsumerWidget {
                           color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: Colors.white.withOpacity(0.35))),
-                        child: const Text('View Full Pathway →',
+                        child: const Text('View Full Pathway â†’',
                           style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
                             fontWeight: FontWeight.w700, color: Colors.white))),
                     ]),
@@ -387,7 +401,7 @@ class HomeScreen extends ConsumerWidget {
 
             const SizedBox(height: 24),
 
-            // ── Top Matches ──────────────────────────
+            // â”€â”€ Top Matches â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             SectionHeader(title: 'Top Matches for You',
               action: 'See all',
               onAction: () => _showAllMatches(context, ref)),
@@ -395,12 +409,12 @@ class HomeScreen extends ConsumerWidget {
             matchesAsync.when(
               loading: () => Column(children: const [
                 ShimmerCard(), SizedBox(height: 10), ShimmerCard()]),
-              error: (_, __) => EmptyState(emoji: '🔍',
+              error: (_, __) => EmptyState(emoji: 'ðŸ”',
                 title: 'No matches yet',
                 subtitle: 'Complete onboarding to see your career matches'),
               data: (matches) {
                 if (matches.isEmpty) return EmptyState(
-                  emoji: '🎯', title: 'No matches yet',
+                  emoji: 'ðŸŽ¯', title: 'No matches yet',
                   subtitle: 'Complete onboarding to see your personalised career matches',
                   actionLabel: 'Get Started',
                   onAction: () => context.push(AppConstants.routeWhoAreYou));
@@ -427,7 +441,7 @@ class HomeScreen extends ConsumerWidget {
                           ])),
                           MatchRing(pct: m.matchScore),
                         ]),
-                        // Why we matched you — tap for the full breakdown
+                        // Why we matched you â€” tap for the full breakdown
                         MatchReasonLine(reason: m.matchReason, careerId: m.careerId),
                       ]),
                     ));
@@ -437,34 +451,34 @@ class HomeScreen extends ConsumerWidget {
 
             const SizedBox(height: 24),
 
-            // ── Browse Categories ────────────────────
-            // Browsing is FREE — the hook comes first, the paywall sits on
+            // â”€â”€ Browse Categories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // Browsing is FREE â€” the hook comes first, the paywall sits on
             // deeper features (compare, unlimited saves, full roadmap).
             const SectionHeader(title: 'Browse by Category'),
             const SizedBox(height: 12),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(children: [
-                _CatCard(emoji: '💻', label: 'Technology', color: AppColors.primaryPale,
+                _CatCard(emoji: 'ðŸ’»', label: 'Technology', color: AppColors.primaryPale,
                   onTap: () => context.push('/careers-by-category/Technology')),
                 const SizedBox(width: 10),
-                _CatCard(emoji: '🎨', label: 'Creative',
+                _CatCard(emoji: 'ðŸŽ¨', label: 'Creative',
                   color: const Color(0xFFFDF2F8),
                   onTap: () => context.push('/careers-by-category/Creative & Media')),
                 const SizedBox(width: 10),
-                _CatCard(emoji: '💼', label: 'Business',
+                _CatCard(emoji: 'ðŸ’¼', label: 'Business',
                   color: const Color(0xFFFFFBEB),
                   onTap: () => context.push('/careers-by-category/Business & Finance')),
                 const SizedBox(width: 10),
-                _CatCard(emoji: '💊', label: 'Health',
+                _CatCard(emoji: 'ðŸ’Š', label: 'Health',
                   color: const Color(0xFFECFDF5),
                   onTap: () => context.push('/careers-by-category/Health & Medicine')),
                 const SizedBox(width: 10),
-                _CatCard(emoji: '🔬', label: 'Science',
+                _CatCard(emoji: 'ðŸ”¬', label: 'Science',
                   color: const Color(0xFFEFF6FF),
                   onTap: () => context.push('/careers-by-category/Engineering')),
                 const SizedBox(width: 10),
-                _CatCard(emoji: '⚖️', label: 'Law',
+                _CatCard(emoji: 'âš–ï¸', label: 'Law',
                   color: const Color(0xFFF5F3FF),
                   onTap: () => context.push('/careers-by-category/Law & Social Work')),
               ]),
@@ -472,7 +486,7 @@ class HomeScreen extends ConsumerWidget {
 
             const SizedBox(height: 24),
 
-            // ── All Careers ──────────────────────────
+            // â”€â”€ All Careers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             SectionHeader(title: 'All Careers',
               action: 'See all',
               onAction: () => context.go(AppConstants.routeExplore)),
@@ -538,11 +552,11 @@ class _CatCard extends StatelessWidget {
   );
 }
 
-// ══════════════════════════════════════════════
-// DISCOVER PROMO CARD — the loudest card on Home.
-// Hot pink→orange gradient, fanned mini card-deck graphic, and a
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// DISCOVER PROMO CARD â€” the loudest card on Home.
+// Hot pinkâ†’orange gradient, fanned mini card-deck graphic, and a
 // slow breathe animation so the eye can't skip past it.
-// ══════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _DiscoverPromoCard extends StatefulWidget {
   const _DiscoverPromoCard();
   @override
@@ -611,7 +625,7 @@ class _DiscoverPromoCardState extends State<_DiscoverPromoCard>
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.22),
                   borderRadius: BorderRadius.circular(999)),
-                child: const Text('🔥 SWIPE GAME', style: TextStyle(
+                child: const Text('ðŸ”¥ SWIPE GAME', style: TextStyle(
                   fontFamily: 'Nunito', fontSize: 9,
                   fontWeight: FontWeight.w900, color: Colors.white,
                   letterSpacing: 1))),
@@ -620,7 +634,7 @@ class _DiscoverPromoCardState extends State<_DiscoverPromoCard>
                 fontFamily: 'Nunito', fontSize: 19,
                 fontWeight: FontWeight.w900, color: Colors.white)),
               const SizedBox(height: 2),
-              const Text('Swipe right on your future.\nLike it or bin it 👉',
+              const Text('Swipe right on your future.\nLike it or bin it ðŸ‘‰',
                 style: TextStyle(fontFamily: 'Nunito', fontSize: 12,
                   fontWeight: FontWeight.w600, color: Colors.white,
                   height: 1.35)),
@@ -631,7 +645,7 @@ class _DiscoverPromoCardState extends State<_DiscoverPromoCard>
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(999)),
-                child: const Text('Play now →', style: TextStyle(
+                child: const Text('Play now â†’', style: TextStyle(
                   fontFamily: 'Nunito', fontSize: 12,
                   fontWeight: FontWeight.w900,
                   color: Color(0xFFFF5FA2)))),
@@ -642,10 +656,10 @@ class _DiscoverPromoCardState extends State<_DiscoverPromoCard>
               alignment: Alignment.center,
               children: [
                 Positioned(left: 0,
-                  child: _miniCard('🩺', -0.22, const Color(0xFF0E9B76))),
+                  child: _miniCard('ðŸ©º', -0.22, const Color(0xFF0E9B76))),
                 Positioned(right: 0,
-                  child: _miniCard('🎨', 0.22, const Color(0xFFEC4899))),
-                _miniCard('🚀', 0, const Color(0xFF5B4FE9)),
+                  child: _miniCard('ðŸŽ¨', 0.22, const Color(0xFFEC4899))),
+                _miniCard('ðŸš€', 0, const Color(0xFF5B4FE9)),
               ])),
           ]),
         ),
