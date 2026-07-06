@@ -724,6 +724,7 @@ class StudentDetailScreen extends ConsumerStatefulWidget {
 class _StudentDetailState extends ConsumerState<StudentDetailScreen> {
   List<Map<String, dynamic>> _notes = [];
   List<Map<String, dynamic>> _matches = [];
+  Map<String, dynamic>? _profile; // full profile from advisor_student_profile
   final _noteCtrl = TextEditingController();
   bool _loading = true;
   bool _saving = false;
@@ -747,29 +748,50 @@ class _StudentDetailState extends ConsumerState<StudentDetailScreen> {
           _notes = (n as List).cast<Map<String, dynamic>>();
         }
       }
-      // Load matches via a secure function: advisors can't read a student's
-      // users row directly (RLS), so we pass the roster id and the function
-      // resolves the student's matches internally.
+      // One secure call returns details, interests, strengths and matches
+      // (bypasses the users-table RLS wall for authorised advisors).
       try {
-        final m = await _sb.rpc('advisor_student_matches',
+        final p = await _sb.rpc('advisor_student_profile',
             params: {'p_roster_id': widget.student['id']});
-        _matches = (m as List).map((e) => {
-          'score': e['match_score'],
-          'career': e['career_name'],
+        final map = (p as Map).cast<String, dynamic>();
+        _profile = map;
+        _matches = ((map['matches'] as List?) ?? []).map((e) => {
+          'score': e['score'], 'career': e['career'],
         }).toList();
       } catch (_) {
-        _matches = [];
+        _profile = null;
       }
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
   }
 
-  Future<String?> _lookupAuthUid(String usersId) async {
+  Future<void> _removeStudent() async {
+    final sure = await showDialog<bool>(context: context, builder: (ctx) =>
+      AlertDialog(
+        title: const Text('Remove student?', style: TextStyle(
+          fontFamily: 'Nunito', fontWeight: FontWeight.w900)),
+        content: const Text('This removes them from this cohort and deletes '
+          'your notes on them. Their own account is not affected.',
+          style: TextStyle(fontFamily: 'Nunito', fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove', style: TextStyle(color: AppColors.error))),
+        ]));
+    if (sure != true) return;
     try {
-      final r = await _sb.from('users')
-          .select('supabase_uid').eq('id', usersId).maybeSingle();
-      return r?['supabase_uid'] as String?;
-    } catch (_) { return null; }
+      final ok = await _sb.rpc('advisor_remove_student',
+          params: {'p_roster_id': widget.student['id']});
+      if (ok == true && mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Student removed from cohort')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Error: $e'), backgroundColor: AppColors.error));
+    }
   }
 
   Future<void> _saveNote() async {
@@ -807,7 +829,18 @@ class _StudentDetailState extends ConsumerState<StudentDetailScreen> {
       backgroundColor: AppColors.bgPage,
       appBar: AppBar(title: Text(name, style: const TextStyle(
         fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
-        leading: GestureDetector(onTap: () => Navigator.pop(context), child: const BackBtn())),
+        leading: GestureDetector(onTap: () => Navigator.pop(context), child: const BackBtn()),
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded, color: AppColors.textDark),
+            onSelected: (v) { if (v == 'remove') _removeStudent(); },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'remove',
+                child: Text('🗑  Remove from cohort',
+                  style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
+                    fontWeight: FontWeight.w700, color: AppColors.error))),
+            ]),
+        ]),
       body: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [
         EduCard(color: AppColors.primaryPale, child: Row(children: [
           CircleAvatar(radius: 28, backgroundColor: AppColors.primary,
@@ -826,22 +859,32 @@ class _StudentDetailState extends ConsumerState<StudentDetailScreen> {
           ])),
         ])),
         const SizedBox(height: 20),
+        // Login / account details
+        _AdvisorInfoBlock(profile: _profile, loading: _loading),
+        const SizedBox(height: 16),
+        // Interests & strengths chips
+        _ChipsSection(title: 'Interests 🎯',
+          items: (_profile?['interests'] as List?)?.cast<String>() ?? const [],
+          loading: _loading, empty: 'No interests recorded yet.'),
+        const SizedBox(height: 16),
+        _ChipsSection(title: 'Strengths ⭐',
+          items: (_profile?['strengths'] as List?)?.cast<String>() ?? const [],
+          loading: _loading, empty: 'No strengths recorded yet.'),
+        const SizedBox(height: 20),
         const SectionHeader(title: 'Career Matches'),
         const SizedBox(height: 10),
-        if (!done)
-          const Text('Student has not completed their profile yet.',
-            style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
-              color: AppColors.textMid))
+        if (_loading)
+          const Center(child: CircularProgressIndicator())
         else if (_matches.isEmpty)
-          const Text('No matches yet.',
+          const Text('No matches yet — the student may still be completing their profile.',
             style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: AppColors.textMid))
-        else ..._matches.map((m) => Padding(
+        else ..._matches.take(10).map((m) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: EduCard(child: Row(children: [
-            MatchRing(pct: m['score'] as int, size: 36),
+            MatchRing(pct: (m['score'] as num).toInt(), size: 36),
             const SizedBox(width: 12),
-            Text(m['career'] as String, style: const TextStyle(
-              fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w700)),
+            Expanded(child: Text(m['career'] as String, style: const TextStyle(
+              fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w700))),
           ])))),
         const SizedBox(height: 20),
         const SectionHeader(title: 'Advisor Notes'),
@@ -1182,4 +1225,69 @@ class _Row extends StatelessWidget {
       Text(value, style: const TextStyle(fontFamily: 'Nunito',
         fontSize: 13, fontWeight: FontWeight.w700)),
     ]));
+}
+
+// ── Advisor: student account/login details block ──
+class _AdvisorInfoBlock extends StatelessWidget {
+  final Map<String, dynamic>? profile;
+  final bool loading;
+  const _AdvisorInfoBlock({required this.profile, required this.loading});
+  @override
+  Widget build(BuildContext context) {
+    if (loading) return const SizedBox();
+    final d = profile?['details'] as Map?;
+    if (d == null) return const SizedBox();
+    String fmt(String? s) {
+      final dt = DateTime.tryParse(s ?? '');
+      return dt == null ? '—' : '${dt.day}/${dt.month}/${dt.year}';
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SectionHeader(title: 'Account Details'),
+      const SizedBox(height: 10),
+      EduCard(child: Column(children: [
+        _kv('Name', d['full_name'] ?? '—'),
+        _kv('Login email', d['email'] ?? '—'),
+        _kv('School year', d['school_year'] ?? '—'),
+        _kv('Profile', d['onboarding_complete'] == true ? 'Complete ✓' : 'In progress'),
+        _kv('Joined', fmt(d['created_at'] as String?)),
+      ])),
+    ]);
+  }
+  Widget _kv(String k, String v) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SizedBox(width: 110, child: Text(k, style: const TextStyle(
+        fontFamily: 'Nunito', fontSize: 12.5, color: AppColors.textMid,
+        fontWeight: FontWeight.w700))),
+      Expanded(child: Text(v, style: const TextStyle(fontFamily: 'Nunito',
+        fontSize: 12.5, fontWeight: FontWeight.w700))),
+    ]));
+}
+
+// ── Advisor: interests / strengths chip section ──
+class _ChipsSection extends StatelessWidget {
+  final String title, empty;
+  final List<String> items;
+  final bool loading;
+  const _ChipsSection({required this.title, required this.items,
+    required this.loading, required this.empty});
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SectionHeader(title: title),
+      const SizedBox(height: 10),
+      if (loading) const SizedBox(height: 8)
+      else if (items.isEmpty)
+        Text(empty, style: const TextStyle(fontFamily: 'Nunito',
+          fontSize: 13, color: AppColors.textMid))
+      else Wrap(spacing: 8, runSpacing: 8, children: items.map((s) =>
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(color: AppColors.primaryPale,
+            borderRadius: BorderRadius.circular(999)),
+          child: Text(s, style: const TextStyle(fontFamily: 'Nunito',
+            fontSize: 12.5, fontWeight: FontWeight.w700,
+            color: AppColors.primaryDark)))).toList()),
+    ]);
+  }
 }
