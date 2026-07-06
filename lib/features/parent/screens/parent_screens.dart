@@ -10,6 +10,7 @@ import '../../../core/services/providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/models.dart';
 import '../../../shared/widgets/shared_widgets.dart';
+import '../../roadmap/roadmap_engine.dart';
 
 final _sb = Supabase.instance.client;
 
@@ -52,13 +53,11 @@ final _childMatchesProvider = FutureProvider.family<List<Map<String, dynamic>>, 
 
 final _childInterestsProvider = FutureProvider.family<List<String>, String>(
   (ref, userId) async {
-    final res = await _sb
-        .from('user_interest')
-        .select('interests(name)')
-        .eq('user_id', userId);
-    return (res as List)
-        .map((e) => (e['interests'] as Map)['name'] as String)
-        .toList();
+    // Parents can't read their child's user_interest rows directly (RLS),
+    // so use a secure function that checks the parent link server-side.
+    final res = await _sb.rpc('parent_child_interests',
+        params: {'p_child_id': userId});
+    return ((res as List?) ?? []).map((e) => e.toString()).toList();
   });
 
 // ══════════════════════════════════════════════
@@ -677,9 +676,126 @@ class _ChildProgressScreen extends ConsumerWidget {
                       ],
                     ])));
                 }).toList())),
+
+        // ── Child's roadmap (based on their top match + school year) ──
+        const SizedBox(height: 24),
+        const SectionHeader(title: 'Their Roadmap 🗺️'),
+        const SizedBox(height: 4),
+        Text('How you can support ${childName.split(' ').first} towards their '
+          'top career, step by step.',
+          style: const TextStyle(fontFamily: 'Nunito', fontSize: 12.5,
+            color: AppColors.textMid)),
+        const SizedBox(height: 12),
+        matchesAsync.when(
+          loading: () => const SizedBox(),
+          error: (_, __) => const SizedBox(),
+          data: (matches) {
+            if (matches.isEmpty) {
+              return const Text('A roadmap appears once your child has matches.',
+                style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
+                  color: AppColors.textMid));
+            }
+            final top = matches.first['careers'] as Map;
+            final roadmap = buildCareerRoadmap(
+              careerName: top['name'] as String,
+              category: top['category'] as String?,
+              schoolYear: schoolYear);
+            return _ChildRoadmapView(roadmap: roadmap,
+              careerName: top['name'] as String);
+          }),
+
         const SizedBox(height: 80),
       ])),
     );
+  }
+}
+
+// ── Compact roadmap view for the parent's child screen ──
+class _ChildRoadmapView extends StatelessWidget {
+  final CareerRoadmap roadmap;
+  final String careerName;
+  const _ChildRoadmapView({required this.roadmap, required this.careerName});
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // Career banner
+      Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [
+            roadmap.color, roadmap.color.withOpacity(0.75)]),
+          borderRadius: BorderRadius.circular(14)),
+        child: Row(children: [
+          Text(roadmap.emoji, style: const TextStyle(fontSize: 26)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('PATH TO', style: TextStyle(fontFamily: 'Nunito',
+              fontSize: 9, fontWeight: FontWeight.w800,
+              color: Colors.white70, letterSpacing: 1.2)),
+            Text(careerName, style: const TextStyle(fontFamily: 'Nunito',
+              fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+          ])),
+        ])),
+      const SizedBox(height: 14),
+      // Stages
+      ...roadmap.stages.map((s) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Column(children: [
+            Container(width: 30, height: 30,
+              decoration: BoxDecoration(
+                color: s.current ? roadmap.color
+                    : (s.done ? AppColors.success : roadmap.color.withOpacity(0.15)),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: s.done ? AppColors.success : roadmap.color, width: 2)),
+              child: Center(child: s.done
+                ? const Icon(Icons.check_rounded, size: 15, color: AppColors.success)
+                : Text(s.emoji, style: const TextStyle(fontSize: 13)))),
+          ]),
+          const SizedBox(width: 12),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text(s.title, style: const TextStyle(fontFamily: 'Nunito',
+                fontSize: 13.5, fontWeight: FontWeight.w800)),
+              if (s.current) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(color: roadmap.color,
+                    borderRadius: BorderRadius.circular(999)),
+                  child: const Text('NOW', style: TextStyle(fontFamily: 'Nunito',
+                    fontSize: 8, fontWeight: FontWeight.w900, color: Colors.white))),
+              ],
+            ]),
+            const SizedBox(height: 3),
+            ...s.milestones.map((m) => Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text('• $m', style: const TextStyle(fontFamily: 'Nunito',
+                fontSize: 12, color: AppColors.textMid, height: 1.4)))),
+          ])),
+        ]))),
+      // Route options at 18
+      const SizedBox(height: 6),
+      const Text('At 18 — the routes to aim for:', style: TextStyle(
+        fontFamily: 'Nunito', fontSize: 12.5, fontWeight: FontWeight.w800)),
+      const SizedBox(height: 6),
+      ...roadmap.routes.map((r) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${r.emoji} ', style: const TextStyle(fontSize: 13)),
+          Expanded(child: RichText(text: TextSpan(children: [
+            TextSpan(text: '${r.title} — ',
+              style: const TextStyle(fontFamily: 'Nunito', fontSize: 12,
+                fontWeight: FontWeight.w800, color: AppColors.textDark)),
+            TextSpan(text: r.detail,
+              style: const TextStyle(fontFamily: 'Nunito', fontSize: 12,
+                color: AppColors.textMid, height: 1.4)),
+          ]))),
+        ]))),
+    ]);
   }
 }
 
