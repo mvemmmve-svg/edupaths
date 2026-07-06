@@ -747,22 +747,18 @@ class _StudentDetailState extends ConsumerState<StudentDetailScreen> {
           _notes = (n as List).cast<Map<String, dynamic>>();
         }
       }
-      final userId = widget.student['user_id'] as String?;
-      if (userId != null) {
-        // matches.firebase_uid stores the auth UID, not users.id — look up
-        // the student's supabase_uid first, then query matches by it.
-        final authUid = widget.student['users']?['supabase_uid']
-            ?? await _lookupAuthUid(userId);
-        if (authUid != null) {
-          final m = await _sb.from('matches')
-              .select('match_score, careers(name)')
-              .eq('firebase_uid', authUid)
-              .order('match_score', ascending: false).limit(5);
-          _matches = (m as List).map((e) => {
-            'score': e['match_score'],
-            'career': (e['careers'] as Map)['name'],
-          }).toList();
-        }
+      // Load matches via a secure function: advisors can't read a student's
+      // users row directly (RLS), so we pass the roster id and the function
+      // resolves the student's matches internally.
+      try {
+        final m = await _sb.rpc('advisor_student_matches',
+            params: {'p_roster_id': widget.student['id']});
+        _matches = (m as List).map((e) => {
+          'score': e['match_score'],
+          'career': e['career_name'],
+        }).toList();
+      } catch (_) {
+        _matches = [];
       }
     } catch (_) {}
     if (mounted) setState(() => _loading = false);

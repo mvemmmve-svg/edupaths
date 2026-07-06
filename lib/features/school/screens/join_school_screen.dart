@@ -137,6 +137,10 @@ class _JoinSchoolState extends ConsumerState<JoinSchoolScreen> {
           .update({
             'user_id': user.id,
             'status': 'active',
+            // Sync the real account email onto the roster row — teachers
+            // often mistype emails when uploading, so the student's actual
+            // login email is the source of truth once they've joined.
+            'student_email': user.email ?? row['student_email'],
             'joined_at': DateTime.now().toUtc().toIso8601String(),
           })
           .eq('id', row['id']);
