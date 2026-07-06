@@ -328,24 +328,25 @@ class _ChildInsightCard extends ConsumerWidget {
                     fontWeight: FontWeight.w700, color: AppColors.textMid)),
                   const SizedBox(height: 8),
                   ...matches.take(5).map((m) {
-                    final career = m['careers'] as Map;
+                    final career = (m['career'] ?? m['careers']) as Map? ?? {};
+                    final score = (m['match_score'] as num?)?.toInt() ?? 0;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 6),
                       child: Row(children: [
-                        MatchRing(pct: m['match_score'] as int, size: 36),
+                        MatchRing(pct: score, size: 36),
                         const SizedBox(width: 10),
                         Expanded(child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(career['name'] as String, style: const TextStyle(
+                          Text((career['name'] ?? 'Career').toString(), style: const TextStyle(
                             fontFamily: 'Nunito', fontSize: 13,
                             fontWeight: FontWeight.w700)),
                           if (career['avg_salary'] != null)
-                            Text(career['avg_salary'] as String,
+                            Text(career['avg_salary'].toString(),
                               style: const TextStyle(fontFamily: 'Nunito',
                                 fontSize: 11, color: AppColors.textMid)),
                         ])),
                         if (career['category'] != null)
-                          TagBadge(label: career['category'] as String,
+                          TagBadge(label: career['category'].toString(),
                             bg: AppColors.bgGrey, fg: AppColors.textMid),
                       ]));
                   }),
@@ -645,26 +646,27 @@ class _ChildProgressScreen extends ConsumerWidget {
               ? const EmptyState(emoji: '🔍', title: 'No matches yet',
                   subtitle: 'Child needs to complete onboarding')
               : Column(children: matches.map((m) {
-                  final career = m['careers'] as Map;
+                  final career = (m['career'] ?? m['careers']) as Map? ?? {};
+                  final score = (m['match_score'] as num?)?.toInt() ?? 0;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: EduCard(child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
-                        MatchRing(pct: m['match_score'] as int, size: 44),
+                        MatchRing(pct: score, size: 44),
                         const SizedBox(width: 12),
                         Expanded(child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(career['name'] as String, style: const TextStyle(
+                          Text((career['name'] ?? 'Career').toString(), style: const TextStyle(
                             fontFamily: 'Nunito', fontSize: 15,
                             fontWeight: FontWeight.w800)),
                           if (career['avg_salary'] != null)
-                            Text(career['avg_salary'] as String,
+                            Text(career['avg_salary'].toString(),
                               style: const TextStyle(fontFamily: 'Nunito',
                                 fontSize: 12, color: AppColors.textMid)),
                         ])),
                         if (career['category'] != null) TagBadge(
-                          label: career['category'] as String,
+                          label: career['category'].toString(),
                           bg: AppColors.primaryPale, fg: AppColors.primaryDark),
                       ]),
                       if (m['match_reason'] != null &&
@@ -695,13 +697,14 @@ class _ChildProgressScreen extends ConsumerWidget {
                 style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
                   color: AppColors.textMid));
             }
-            final top = matches.first['careers'] as Map;
+            final top = (matches.first['career'] ?? matches.first['careers']) as Map? ?? {};
+            final topName = (top['name'] ?? '').toString();
+            if (topName.isEmpty) return const SizedBox();
             final roadmap = buildCareerRoadmap(
-              careerName: top['name'] as String,
+              careerName: topName,
               category: top['category'] as String?,
               schoolYear: schoolYear);
-            return _ChildRoadmapView(roadmap: roadmap,
-              careerName: top['name'] as String);
+            return _ChildRoadmapView(roadmap: roadmap, careerName: topName);
           }),
 
         const SizedBox(height: 80),
