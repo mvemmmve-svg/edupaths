@@ -272,11 +272,14 @@ class _CareerEditorState extends ConsumerState<_CareerEditor> {
 
   // ── Link management ──
   Future<void> _addLink(bool isInterest) async {
-    final options = isInterest
-        ? ref.read(adminInterestsProvider).valueOrNull ??
-            await ref.read(adminInterestsProvider.future)
-        : ref.read(adminTraitsProvider).valueOrNull ??
-            await ref.read(adminTraitsProvider.future);
+    List<Map<String, dynamic>> options;
+    try {
+      options = isInterest
+          ? await ref.read(adminInterestsProvider.future)
+          : await ref.read(adminTraitsProvider.future);
+    } catch (_) {
+      options = [];
+    }
     final existing = (isInterest ? _interestLinks : _traitLinks) ?? [];
     final linkedIds = existing.map((l) =>
         (l[isInterest ? 'interests' : 'trait'] as Map?)?['id']).toSet();
@@ -293,7 +296,7 @@ class _CareerEditorState extends ConsumerState<_CareerEditor> {
             fontFamily: 'Nunito', fontWeight: FontWeight.w900)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           DropdownButtonFormField<String>(
-            initialValue: pickedId,
+            value: pickedId,
             isExpanded: true,
             items: available.map((o) => DropdownMenuItem(
               value: o['id'] as String,
@@ -392,7 +395,7 @@ class _CareerEditorState extends ConsumerState<_CareerEditor> {
               labelText: 'Career name')),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              initialValue: widget.categories.contains(_category)
+              value: widget.categories.contains(_category)
                   ? _category : null,
               decoration: const InputDecoration(labelText: 'Category'),
               items: widget.categories.map((c) => DropdownMenuItem(
@@ -606,8 +609,12 @@ class _QualEditorState extends ConsumerState<_QualEditor> {
   }
 
   Future<void> _addCourseLink() async {
-    final courses = ref.read(adminCoursesLiteProvider).valueOrNull ??
-        await ref.read(adminCoursesLiteProvider.future);
+    List<Map<String, dynamic>> courses;
+    try {
+      courses = await ref.read(adminCoursesLiteProvider.future);
+    } catch (_) {
+      courses = [];
+    }
     final linked = (_courseLinks ?? [])
         .map((l) => (l['courses'] as Map?)?['id']).toSet();
     final available =
@@ -672,7 +679,7 @@ class _QualEditorState extends ConsumerState<_QualEditor> {
               labelText: 'Title (e.g. GCSE Computer Science)')),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              initialValue: _type,
+              value: _type,
               decoration: const InputDecoration(labelText: 'Type'),
               items: const ['GCSE', 'A-Level', 'BTEC', 'T-Level']
                   .map((t) => DropdownMenuItem(value: t,
