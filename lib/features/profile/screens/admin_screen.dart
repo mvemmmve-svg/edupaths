@@ -532,9 +532,24 @@ class _SchoolsTab extends ConsumerWidget {
                           style: TextStyle(fontFamily: 'Nunito',
                             fontSize: 12, fontWeight: FontWeight.w800)))),
                     ]),
+                    const SizedBox(height: 6),
+                    SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                      onPressed: () => _viewStudents(context, s['id'], s['name'] ?? 'School'),
+                      icon: const Icon(Icons.groups_rounded, size: 16),
+                      label: const Text('View & manage students',
+                        style: TextStyle(fontFamily: 'Nunito', fontSize: 12,
+                          fontWeight: FontWeight.w800)))),
                   ])));
               }),
     );
+  }
+
+  void _viewStudents(BuildContext context, String schoolId, String schoolName) {
+    showModalBottomSheet(context: context, isScrollControlled: true,
+      backgroundColor: AppColors.bgPage,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _AdminStudentsSheet(schoolId: schoolId, schoolName: schoolName));
   }
 
   Future<void> _activateSchool(BuildContext ctx, WidgetRef ref, String id) async {
@@ -984,4 +999,88 @@ void showImportCourseSheet(BuildContext context, VoidCallback onSaved) {
           const SizedBox(height: 8),
         ]));
       })));
+}
+
+// ── Admin: view & remove students in any school ──
+class _AdminStudentsSheet extends StatefulWidget {
+  final String schoolId, schoolName;
+  const _AdminStudentsSheet({required this.schoolId, required this.schoolName});
+  @override
+  State<_AdminStudentsSheet> createState() => _AdminStudentsSheetState();
+}
+
+class _AdminStudentsSheetState extends State<_AdminStudentsSheet> {
+  List<Map<String, dynamic>>? _students;
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    try {
+      final res = await _sb.rpc('admin_school_students',
+          params: {'p_school_id': widget.schoolId});
+      if (mounted) setState(() =>
+        _students = ((res as List?) ?? []).cast<Map<String, dynamic>>());
+    } catch (_) { if (mounted) setState(() => _students = []); }
+  }
+
+  Future<void> _remove(String id, String name) async {
+    final sure = await showDialog<bool>(context: context, builder: (ctx) =>
+      AlertDialog(
+        title: const Text('Remove student?', style: TextStyle(
+          fontFamily: 'Nunito', fontWeight: FontWeight.w900)),
+        content: Text('Remove $name from their cohort? Their own account '
+          'is not affected.', style: const TextStyle(fontFamily: 'Nunito', fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove', style: TextStyle(color: AppColors.error))),
+        ]));
+    if (sure != true) return;
+    await _sb.rpc('admin_remove_student', params: {'p_roster_id': id});
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false, initialChildSize: 0.8, maxChildSize: 0.95,
+      builder: (_, scroll) => Column(children: [
+        Padding(padding: const EdgeInsets.fromLTRB(20, 20, 12, 8),
+          child: Row(children: [
+            Expanded(child: Text('${widget.schoolName} — Students',
+              style: const TextStyle(fontFamily: 'Nunito', fontSize: 16,
+                fontWeight: FontWeight.w900))),
+            IconButton(icon: const Icon(Icons.close_rounded),
+              onPressed: () => Navigator.pop(context)),
+          ])),
+        Expanded(child: _students == null
+          ? const Center(child: CircularProgressIndicator())
+          : _students!.isEmpty
+            ? const EmptyState(emoji: '👥', title: 'No students',
+                subtitle: 'This school has no students yet')
+            : ListView.builder(
+                controller: scroll,
+                padding: const EdgeInsets.all(16),
+                itemCount: _students!.length,
+                itemBuilder: (_, i) {
+                  final s = _students![i];
+                  return Padding(padding: const EdgeInsets.only(bottom: 8),
+                    child: EduCard(child: Row(children: [
+                      Expanded(child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(s['name'] ?? '—', style: const TextStyle(
+                          fontFamily: 'Nunito', fontSize: 13,
+                          fontWeight: FontWeight.w800)),
+                        Text('${s['year'] ?? ''} · ${s['cohort'] ?? ''} · ${s['status'] ?? ''}',
+                          style: const TextStyle(fontFamily: 'Nunito',
+                            fontSize: 11, color: AppColors.textMid)),
+                      ])),
+                      IconButton(
+                        icon: const Icon(Icons.person_remove_rounded,
+                          size: 18, color: AppColors.error),
+                        onPressed: () => _remove(s['id'], s['name'] ?? 'this student')),
+                    ])));
+                })),
+      ]));
+  }
 }
