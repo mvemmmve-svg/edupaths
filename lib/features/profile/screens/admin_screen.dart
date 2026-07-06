@@ -9,6 +9,7 @@ import '../../../core/services/db_service.dart';
 import '../../../core/services/providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/shared_widgets.dart';
+import 'admin_content_tabs.dart';
 
 final _sb = Supabase.instance.client;
 
@@ -53,7 +54,7 @@ class _AdminState extends ConsumerState<AdminScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 4, vsync: this);
+    _tabs = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -74,6 +75,7 @@ class _AdminState extends ConsumerState<AdminScreen>
           onTap: () => context.pop(), child: const BackBtn()),
         bottom: TabBar(
           controller: _tabs,
+          isScrollable: true,
           indicatorColor: Colors.white,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white54,
@@ -81,6 +83,8 @@ class _AdminState extends ConsumerState<AdminScreen>
             fontSize: 11, fontWeight: FontWeight.w800),
           tabs: const [
             Tab(text: '👥 Users'),
+            Tab(text: '💼 Careers'),
+            Tab(text: '📋 Quals'),
             Tab(text: '🏫 Schools'),
             Tab(text: '🎓 Courses'),
             Tab(text: '📊 Stats'),
@@ -89,6 +93,8 @@ class _AdminState extends ConsumerState<AdminScreen>
       ),
       body: TabBarView(controller: _tabs, children: [
         _UsersTab(),
+        const CareersAdminTab(),
+        const QualsAdminTab(),
         _SchoolsTab(),
         _CoursesTab(),
         _StatsTab(),
@@ -209,6 +215,17 @@ class _UserCardState extends ConsumerState<_UserCard> {
       case 'premium': return AppColors.accentGreen;
       case 'premium_plus': return Colors.amber;
       default: return AppColors.textLight;
+    }
+  }
+
+  Future<void> _setStatus(String status) async {
+    setState(() => _saving = true);
+    try {
+      await _sb.from('users').update({'account_status': status})
+          .eq('id', widget.user['id']);
+      widget.onChanged();
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -336,7 +353,33 @@ class _UserCardState extends ConsumerState<_UserCard> {
             _InfoRow('School Year', schoolYear.isEmpty ? 'Not set' : schoolYear),
             _InfoRow('Role', roleType),
             _InfoRow('Onboarding', onboarded ? '✅ Complete' : '⏳ Pending'),
+            _InfoRow('Account',
+              (widget.user['account_status'] as String? ?? 'active') == 'active'
+                  ? '✅ Active' : '⏸ ${widget.user['account_status']}'),
             const SizedBox(height: 10),
+            // Activate / suspend — for approving student accounts created
+            // under school advisor profiles
+            if ((widget.user['account_status'] as String? ?? 'active') != 'active')
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SizedBox(width: double.infinity, child: ElevatedButton(
+                  onPressed: _saving ? null : () => _setStatus('active'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.white,
+                    textStyle: const TextStyle(fontFamily: 'Nunito',
+                      fontSize: 12, fontWeight: FontWeight.w800)),
+                  child: const Text('✅ Activate Account'))))
+            else
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Align(alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: _saving ? null : () => _setStatus('suspended'),
+                    child: const Text('⏸ Suspend account',
+                      style: TextStyle(fontFamily: 'Nunito', fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textMid))))),
             // Actions
             const Text('Change Tier', style: TextStyle(fontFamily: 'Nunito',
               fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textMid)),

@@ -214,30 +214,10 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(height: 14),
 
             // ── Discover deck entry (interactivity) ──
-            GestureDetector(
-              onTap: () => context.push('/discover'),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [
-                    Color(0xFF7B72F0), Color(0xFF5B4FE9)]),
-                  borderRadius: BorderRadius.circular(14)),
-                child: const Row(children: [
-                  Text('🔥', style: TextStyle(fontSize: 22)),
-                  SizedBox(width: 10),
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Discover careers',
-                      style: TextStyle(fontFamily: 'Nunito', fontSize: 14,
-                        fontWeight: FontWeight.w900, color: Colors.white)),
-                    Text('Swipe through careers — like the ones that sound like you',
-                      style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5,
-                        color: Colors.white70)),
-                  ])),
-                  Icon(Icons.chevron_right_rounded, color: Colors.white),
-                ]),
-              ),
-            ),
+            // Deliberately the loudest thing on the page: hot gradient,
+            // fanned card-deck graphic and a gentle pulse so it reads as
+            // a GAME, not another list row.
+            const _DiscoverPromoCard(),
 
             const SizedBox(height: 14),
 
@@ -528,4 +508,119 @@ class _CatCard extends StatelessWidget {
       ]),
     ),
   );
+}
+
+// ══════════════════════════════════════════════
+// DISCOVER PROMO CARD — the loudest card on Home.
+// Hot pink→orange gradient, fanned mini card-deck graphic, and a
+// slow breathe animation so the eye can't skip past it.
+// ══════════════════════════════════════════════
+class _DiscoverPromoCard extends StatefulWidget {
+  const _DiscoverPromoCard();
+  @override
+  State<_DiscoverPromoCard> createState() => _DiscoverPromoCardState();
+}
+
+class _DiscoverPromoCardState extends State<_DiscoverPromoCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1600))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  Widget _miniCard(String emoji, double angle, Color tint) => Transform.rotate(
+    angle: angle,
+    child: Container(
+      width: 40, height: 54,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(9),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.18),
+          blurRadius: 6, offset: const Offset(0, 3))]),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Text(emoji, style: const TextStyle(fontSize: 18)),
+        const SizedBox(height: 4),
+        Container(width: 22, height: 4, decoration: BoxDecoration(
+          color: tint.withOpacity(0.35),
+          borderRadius: BorderRadius.circular(2))),
+      ])));
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (_, child) => Transform.scale(
+        scale: 1.0 + 0.015 * _pulse.value, child: child),
+      child: GestureDetector(
+        onTap: () => context.push('/discover'),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [Color(0xFFFF5FA2), Color(0xFFFF8C42)]),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [BoxShadow(
+              color: const Color(0xFFFF5FA2).withOpacity(0.45),
+              blurRadius: 18, offset: const Offset(0, 8))]),
+          child: Row(children: [
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.22),
+                  borderRadius: BorderRadius.circular(999)),
+                child: const Text('🔥 SWIPE GAME', style: TextStyle(
+                  fontFamily: 'Nunito', fontSize: 9,
+                  fontWeight: FontWeight.w900, color: Colors.white,
+                  letterSpacing: 1))),
+              const SizedBox(height: 8),
+              const Text('Discover Careers', style: TextStyle(
+                fontFamily: 'Nunito', fontSize: 19,
+                fontWeight: FontWeight.w900, color: Colors.white)),
+              const SizedBox(height: 2),
+              const Text('Swipe right on your future.\nLike it or bin it 👉',
+                style: TextStyle(fontFamily: 'Nunito', fontSize: 12,
+                  fontWeight: FontWeight.w600, color: Colors.white,
+                  height: 1.35)),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(999)),
+                child: const Text('Play now →', style: TextStyle(
+                  fontFamily: 'Nunito', fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFFFF5FA2)))),
+            ])),
+            const SizedBox(width: 6),
+            // Fanned mini card deck
+            SizedBox(width: 86, height: 78, child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned(left: 0,
+                  child: _miniCard('🩺', -0.22, const Color(0xFF0E9B76))),
+                Positioned(right: 0,
+                  child: _miniCard('🎨', 0.22, const Color(0xFFEC4899))),
+                _miniCard('🚀', 0, const Color(0xFF5B4FE9)),
+              ])),
+          ]),
+        ),
+      ));
+  }
 }

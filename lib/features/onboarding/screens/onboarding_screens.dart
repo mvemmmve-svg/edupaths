@@ -36,7 +36,7 @@ class OnboardingStartScreen extends ConsumerWidget {
           const SizedBox(height: 32),
           // Steps — no chevron arrows
           ...[
-            ('⚡', '"This or That" quiz', '30 seconds — no wrong answers'),
+            ('⚡', '"This or That" quiz', '15 quick taps — no wrong answers'),
             ('⭐', 'What do you enjoy?', '20 seconds'),
             ('🤖', 'AI builds your profile', 'Instant!'),
           ].map((s) => Padding(
@@ -113,6 +113,27 @@ const _quiz = <_Q>[
   _Q('What gets you out of bed?',
     _QOption('💡', 'Big new ideas', ['Entrepreneurship', 'Artificial Intelligence', 'Machine Learning']),
     _QOption('🔍', 'Getting details perfect', ['Law', 'Architecture & Design', 'Photography'])),
+  _Q('Free Saturday — what are you doing?',
+    _QOption('🛠️', 'Making or fixing something', ['Construction & Trades', 'Engineering', 'Graphic design']),
+    _QOption('🎮', 'Gaming with mates', ['Gaming', 'Computer Science', 'Mobile Apps'])),
+  _Q('Which would you rather truly understand?',
+    _QOption('🫀', 'How the body works', ['Biology', 'Medicine', 'Fitness & Personal Training']),
+    _QOption('🤖', 'How machines work', ['Engineering', 'Robotics', 'Physics'])),
+  _Q('Pick a school trip:',
+    _QOption('⚖️', 'Courtroom or Parliament', ['Law', 'Politics & Policy', 'Journalism & Media']),
+    _QOption('🧪', 'Science lab or tech HQ', ['Chemistry', 'Physics', 'Artificial Intelligence'])),
+  _Q('Your camera roll is mostly…',
+    _QOption('📸', 'Photos, edits & fits', ['Photography', 'Graphic design', 'Fashion']),
+    _QOption('🎬', 'Videos & memes you made', ['Film and TV', 'Animation & VFX', 'Marketing & Advertising'])),
+  _Q('Money question — you’d rather…',
+    _QOption('🚀', 'Build your own business', ['Entrepreneurship', 'Business', 'Marketing & Advertising']),
+    _QOption('📈', 'Master the money game', ['Finance & Investment', 'Maths & Statistics', 'Data & Analytics'])),
+  _Q('Which compliment hits harder?',
+    _QOption('👂', '“You really listened to me”', ['Psychology', 'Mental Health', 'Social work']),
+    _QOption('⚡', '“You fixed that so fast”', ['Cybersecurity', 'Construction & Trades', 'Engineering'])),
+  _Q('Dream workplace vibe?',
+    _QOption('🌪️', 'Fast, loud, unpredictable', ['Journalism & Media', 'Medicine', 'Entrepreneurship']),
+    _QOption('🧘', 'Calm, focused, in the zone', ['Data & Analytics', 'Architecture & Design', 'Creative Writing'])),
 ];
 
 class ThisOrThatScreen extends ConsumerStatefulWidget {
