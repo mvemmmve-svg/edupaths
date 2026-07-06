@@ -785,58 +785,21 @@ class _AddChildState extends ConsumerState<_AddChildSheet> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      final uid = _sb.auth.currentUser?.id;
-      if (uid == null) return;
-      final parent = await DbService.getUserByUid(uid);
-      if (parent == null) return;
-
-      // Create a virtual user record for the child
-      final email = '${_nameCtrl.text.trim().toLowerCase().replaceAll(' ', '_')}'
-          '_child_${DateTime.now().millisecondsSinceEpoch}@parent';
-
-      final childRes = await _sb.from('users').insert({
-        'supabase_uid': uid,
-        'full_name': _nameCtrl.text.trim(),
-        'name': _nameCtrl.text.trim(),
-        'email': email,
-        'school_year': _schoolYear,
-        'role': 'student',
-        'role_type': 'student',
-        'onboarding_complete': true,
-      }).select('id').single();
-
-      final childId = childRes['id'] as String;
-
-      // Save interests and traits
-      await DbService.saveUserInterests(childId, _selectedInterestIds.toList());
-      if (_selectedTraitIds.isNotEmpty) {
-        await DbService.saveUserTraits(childId, _selectedTraitIds.toList());
+      if (_sb.auth.currentUser == null) {
+        setState(() { _saving = false; _error = 'Please log in again.'; });
+        return;
       }
 
-      // Link parent to child
-      await _sb.from('parent_child').insert({
-        'parent_id': parent.id,
-        'child_id': childId,
-        'child_name': _nameCtrl.text.trim(),
+      // One secure call creates the virtual child, saves interests/traits,
+      // links to this parent, and generates matches — all server-side.
+      // (Direct inserts were blocked by RLS / the supabase_uid unique
+      //  constraint, which is why the button appeared to do nothing.)
+      await _sb.rpc('parent_create_child', params: {
+        'p_name': _nameCtrl.text.trim(),
+        'p_school_year': _schoolYear,
+        'p_interest_ids': _selectedInterestIds.toList(),
+        'p_trait_ids': _selectedTraitIds.toList(),
       });
-
-      // Generate matches using child's userId as firebase_uid
-      final recs = await _sb.rpc('get_recommendations',
-          params: {'p_user_uid': uid});
-      if (recs != null) {
-        await _sb.from('matches')
-            .delete().eq('firebase_uid', childId);
-        // Simple insert from recommendations
-        final matchRows = (recs as List).map((r) => {
-          'firebase_uid': childId,
-          'career_id': r['career_id'],
-          'match_score': r['final_score'],
-          'match_reason': 'Matched on your child\'s interests',
-        }).toList();
-        if (matchRows.isNotEmpty) {
-          await _sb.from('matches').insert(matchRows);
-        }
-      }
 
       if (mounted) {
         Navigator.pop(context);
