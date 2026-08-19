@@ -1,6 +1,4 @@
 // lib/core/services/router.dart
-// KEY CHANGE: routeOnboardingInterests now routes to OnboardingSliderScreen
-// not ThisOrThatScreen
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +16,7 @@ import '../../features/roadmap/screens/roadmap_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
 import '../../features/edubot/screens/edubot_screen.dart';
 import '../../features/support/screens/support_screens.dart';
+import '../../features/support/screens/about_us_screen.dart';
 import '../../features/discover/screens/discover_screen.dart';
 import '../../features/quiz/screens/career_quiz_screen.dart';
 import '../../features/school/screens/join_school_screen.dart';
@@ -75,6 +74,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     errorBuilder: (context, state) => const NotFoundScreen(),
     routes: [
+
       // ── Public ─────────────────────────────────────────────────────────
       GoRoute(path: AppConstants.routeSplash,
           builder: (c, s) => const SplashScreen()),
@@ -90,11 +90,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           builder: (c, s) => const WhoAreYouScreen()),
       GoRoute(path: AppConstants.routeOnboardingStart,
           builder: (c, s) => const OnboardingStartScreen()),
-
-      // *** KEY FIX: routeOnboardingInterests now uses OnboardingSliderScreen ***
       GoRoute(path: AppConstants.routeOnboardingInterests,
           builder: (c, s) => const OnboardingSliderScreen()),
-
       GoRoute(path: AppConstants.routeOnboardingEnjoy,
           builder: (c, s) => const EnjoyScreen()),
       GoRoute(path: AppConstants.routeOnboardingPrefs,
@@ -135,6 +132,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           builder: (c, s) => SupportThreadScreen(
               userId: s.pathParameters['uid'],
               userLabel: s.uri.queryParameters['name'])),
+      GoRoute(path: '/about',
+          builder: (c, s) => const AboutUsScreen()),
       GoRoute(path: AppConstants.routeAdmin,
           builder: (c, s) => const AdminScreen()),
 
