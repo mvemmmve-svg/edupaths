@@ -1,21 +1,25 @@
 // lib/features/profile/screens/admin_screen.dart
-// Full admin dashboard — NOT a normal user screen.
-// Tabs: Overview · Users · Quiz Editor · Support · Test Lab
-// Upload to: lib/features/profile/screens/admin_screen.dart
+// Fix 1: Added back button that returns to Profile (not logout)
+// Dark theme admin panel with 5 tabs.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../features/admin/screens/admin_view_as_screen.dart';
-import '../../../features/admin/screens/admin_support_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/services/providers.dart';
+import '../../../shared/widgets/shared_widgets.dart';
+import '../../admin/screens/admin_view_as_screen.dart';
+import '../../admin/screens/admin_support_screen.dart';
 
-class AdminScreen extends StatefulWidget {
+class AdminScreen extends ConsumerStatefulWidget {
   const AdminScreen({super.key});
-  @override State<AdminScreen> createState() => _AdminScreenState();
+  @override
+  ConsumerState<AdminScreen> createState() => _AdminScreenState();
 }
 
-class _AdminScreenState extends State<AdminScreen>
+class _AdminScreenState extends ConsumerState<AdminScreen>
     with SingleTickerProviderStateMixin {
   final _supabase = Supabase.instance.client;
   late final TabController _tabs;
@@ -36,7 +40,10 @@ class _AdminScreenState extends State<AdminScreen>
     setState(() => _statsLoading = true);
     try {
       final r = await _supabase.rpc('admin_dashboard_stats');
-      setState(() { _stats = Map<String, dynamic>.from(r as Map); _statsLoading = false; });
+      setState(() {
+        _stats = Map<String, dynamic>.from(r as Map);
+        _statsLoading = false;
+      });
     } catch (_) { setState(() => _statsLoading = false); }
   }
 
@@ -47,19 +54,20 @@ class _AdminScreenState extends State<AdminScreen>
       appBar: AppBar(
         backgroundColor: const Color(0xFF1A1A2E),
         foregroundColor: Colors.white,
+        // Fix 1: back button goes to profile, not logout
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
+          tooltip: 'Back to Profile',
+          onPressed: () => context.go('/profile')),
         title: const Row(children: [
           Text('🛡️', style: TextStyle(fontSize: 18)),
           SizedBox(width: 8),
-          Text('Admin Panel', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          Text('Admin Panel', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
         ]),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
-              onPressed: _loadStats),
-          IconButton(icon: const Icon(Icons.logout, color: Colors.white70),
-              onPressed: () async {
-                await _supabase.auth.signOut();
-                if (context.mounted) context.go('/');
-              }),
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
+            onPressed: _loadStats),
         ],
         bottom: TabBar(
           controller: _tabs,
@@ -87,7 +95,7 @@ class _AdminScreenState extends State<AdminScreen>
   }
 }
 
-// ── OVERVIEW TAB ─────────────────────────────────────────────────────────────
+// ── OVERVIEW ─────────────────────────────────────────────────────────────────
 
 class _OverviewTab extends StatelessWidget {
   final Map<String, dynamic> stats;
@@ -117,10 +125,9 @@ class _OverviewTab extends StatelessWidget {
                   highlight: (stats['unread_support'] ?? 0) > 0),
               _StatTile('🎯', 'Careers', '${stats['total_careers'] ?? 0}', const Color(0xFF7C3AED)),
               _StatTile('🧠', 'Quiz Careers', '${stats['total_quizzes'] ?? 0}', const Color(0xFF0891B2)),
-              _StatTile('📅', 'Signups Today', '${stats['signups_today'] ?? 0}', const Color(0xFFDB2777)),
+              _StatTile('📅', 'Today', '${stats['signups_today'] ?? 0}', const Color(0xFFDB2777)),
               _StatTile('📈', 'This Week', '${stats['signups_week'] ?? 0}', const Color(0xFF059669)),
-            ],
-          ),
+            ]),
           const SizedBox(height: 24),
           _SectionHead('⚡ Quick Actions'),
           const SizedBox(height: 8),
@@ -128,26 +135,18 @@ class _OverviewTab extends StatelessWidget {
               () => context.go('/admin-view-as')),
           _QuickAction('📬 Support Inbox', 'Reply to user messages',
               () => context.go('/admin-support')),
-          _QuickAction('🧪 Test Onboarding', 'Run onboarding flow without saving',
+          _QuickAction('🧪 Test Onboarding', 'Run onboarding without saving data',
               () => context.go('/admin-test-onboarding')),
           _QuickAction('🏠 Test Home Screen', 'Preview what students see',
               () => context.go('/admin-test-home')),
           const SizedBox(height: 24),
-          _SectionHead('🔧 System'),
+          _SectionHead('🔙 Navigation'),
           const SizedBox(height: 8),
-          _QuickAction('📋 Full Legacy Dashboard', 'Old 8-tab admin (careers CRUD, schools, etc.)',
-              () => _showLegacyNote(context)),
+          _QuickAction('← Back to Profile', 'Return to your profile page',
+              () => context.go('/profile')),
         ],
       ]),
     );
-  }
-
-  void _showLegacyNote(BuildContext ctx) {
-    showDialog(context: ctx, builder: (_) => AlertDialog(
-      title: const Text('Legacy Dashboard'),
-      content: const Text('The old admin dashboard with Careers CRUD, Schools, Institutions, Broadcast etc. is still accessible via the /admin route in your router. Add a GoRoute for /admin-legacy pointing to your existing AdminDashboardScreen.'),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
-    ));
   }
 }
 
@@ -166,7 +165,7 @@ class _StatTile extends StatelessWidget {
       border: Border.all(color: highlight ? color.withOpacity(0.5) : Colors.white10)),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(emoji, style: const TextStyle(fontSize: 20)),
+      Text(emoji, style: const TextStyle(fontSize: 22)),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
         Text(label, style: const TextStyle(fontSize: 11, color: Colors.white54)),
@@ -192,8 +191,7 @@ class _QuickAction extends StatelessWidget {
         border: Border.all(color: Colors.white10)),
       child: Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold,
-              color: Colors.white, fontSize: 14)),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
           Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.white54)),
         ])),
         const Icon(Icons.chevron_right_rounded, color: Colors.white24),
@@ -212,7 +210,7 @@ class _SectionHead extends StatelessWidget {
         color: Colors.white70, fontSize: 13, letterSpacing: 0.5)));
 }
 
-// ── USERS TAB ────────────────────────────────────────────────────────────────
+// ── USERS TAB ─────────────────────────────────────────────────────────────────
 
 class _UsersTab extends StatefulWidget {
   const _UsersTab();
@@ -257,8 +255,7 @@ class _UsersTabState extends State<_UsersTab> {
         onChanged: _load)),
     Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(children: [
-        Text('${_users.length} users',
-            style: const TextStyle(color: Colors.white38, fontSize: 12)),
+        Text('${_users.length} users', style: const TextStyle(color: Colors.white38, fontSize: 12)),
       ])),
     Expanded(child: _loading
         ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
@@ -306,7 +303,7 @@ class _UsersTabState extends State<_UsersTab> {
   ]);
 }
 
-// ── QUIZ EDITOR TAB ──────────────────────────────────────────────────────────
+// ── QUIZ EDITOR TAB ───────────────────────────────────────────────────────────
 
 class _QuizEditorTab extends StatefulWidget {
   const _QuizEditorTab();
@@ -336,7 +333,6 @@ class _QuizEditorTabState extends State<_QuizEditorTab> {
     } catch (_) { setState(() => _loading = false); }
   }
 
-  // Group by career
   Map<String, List<Map<String, dynamic>>> get _grouped {
     final m = <String, List<Map<String, dynamic>>>{};
     for (final q in _quizzes) {
@@ -406,8 +402,7 @@ class _QuizEditorTabState extends State<_QuizEditorTab> {
                 Row(children: [
                   Expanded(child: Text(q['question'] as String? ?? '',
                       style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))),
-                  Switch(
-                    value: q['is_active'] as bool? ?? true,
+                  Switch(value: q['is_active'] as bool? ?? true,
                     activeColor: const Color(0xFF059669),
                     onChanged: (_) => _toggleActive(q['id'] as String, q['is_active'] as bool? ?? true)),
                   IconButton(
@@ -416,22 +411,17 @@ class _QuizEditorTabState extends State<_QuizEditorTab> {
                         builder: (_) => AlertDialog(
                           backgroundColor: const Color(0xFF1A1A2E),
                           title: const Text('Delete question?', style: TextStyle(color: Colors.white)),
-                          content: const Text('This cannot be undone.',
-                              style: TextStyle(color: Colors.white54)),
+                          content: const Text('This cannot be undone.', style: TextStyle(color: Colors.white54)),
                           actions: [
-                            TextButton(onPressed: () => Navigator.pop(context),
-                                child: const Text('Cancel')),
-                            TextButton(onPressed: () {
-                              Navigator.pop(context);
-                              _deleteQuestion(q['id'] as String);
-                            }, child: const Text('Delete', style: TextStyle(color: Colors.red))),
-                          ],
-                        ))),
+                            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                            TextButton(onPressed: () { Navigator.pop(context); _deleteQuestion(q['id'] as String); },
+                                child: const Text('Delete', style: TextStyle(color: Colors.red))),
+                          ]))),
                 ]),
                 const Divider(color: Colors.white10),
-                _AnswerRow('A', q['option_a'], q['correct_answer'] == 'a'),
-                _AnswerRow('B', q['option_b'], q['correct_answer'] == 'b'),
-                _AnswerRow('C', q['option_c'], q['correct_answer'] == 'c'),
+                _AnswerRow('A', q['option_a'] as String? ?? '', q['correct_answer'] == 'a'),
+                _AnswerRow('B', q['option_b'] as String? ?? '', q['correct_answer'] == 'b'),
+                _AnswerRow('C', q['option_c'] as String? ?? '', q['correct_answer'] == 'c'),
               ]),
             )).toList(),
           );
@@ -456,7 +446,7 @@ class _AnswerRow extends StatelessWidget {
         child: Center(child: Text(label, style: const TextStyle(
             color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)))),
       const SizedBox(width: 8),
-      Expanded(child: Text(text as String? ?? '',
+      Expanded(child: Text(text,
           style: TextStyle(color: correct ? const Color(0xFF6EE7B7) : Colors.white54, fontSize: 11))),
     ]),
   );
@@ -490,19 +480,16 @@ class _AddQuestionSheetState extends State<_AddQuestionSheet> {
   Future<void> _save() async {
     if (_selectedCareerId == null || _qCtrl.text.isEmpty ||
         _aCtrl.text.isEmpty || _bCtrl.text.isEmpty || _cCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Fill in all fields')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fill in all fields')));
       return;
     }
     setState(() => _saving = true);
     try {
-      // Get sort order
       final existing = await _supabase.from('career_quizzes')
           .select('sort_order').eq('career_id', _selectedCareerId!)
           .order('sort_order', ascending: false).limit(1);
       final nextSort = ((List<Map<String,dynamic>>.from(existing as List)
           .firstOrNull?['sort_order'] as int?) ?? 0) + 1;
-
       await _supabase.from('career_quizzes').insert({
         'career_id': _selectedCareerId,
         'career_name': _selectedCareerName,
@@ -518,10 +505,19 @@ class _AddQuestionSheetState extends State<_AddQuestionSheet> {
       if (mounted) { Navigator.pop(context); widget.onSaved(); }
     } catch (e) {
       setState(() => _saving = false);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
+
+  InputDecoration _inputDec(String hint) => InputDecoration(
+    hintText: hint, hintStyle: const TextStyle(color: Colors.white38),
+    filled: true, fillColor: const Color(0xFF0F0F1A),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.white10)),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.white10)),
+    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Color(0xFF6C63FF))));
 
   @override
   Widget build(BuildContext context) {
@@ -529,14 +525,12 @@ class _AddQuestionSheetState extends State<_AddQuestionSheet> {
       expand: false, initialChildSize: 0.92, maxChildSize: 0.98,
       builder: (_, ctrl) => SingleChildScrollView(
         controller: ctrl,
-        padding: EdgeInsets.only(
-            left: 20, right: 20, top: 20,
+        padding: EdgeInsets.only(left: 20, right: 20, top: 20,
             bottom: MediaQuery.of(context).viewInsets.bottom + 24),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Add Quiz Question', style: TextStyle(
               color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
           const SizedBox(height: 16),
-
           const Text('Career', style: TextStyle(color: Colors.white54, fontSize: 12)),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
@@ -546,18 +540,13 @@ class _AddQuestionSheetState extends State<_AddQuestionSheet> {
             value: _selectedCareerId,
             items: widget.careers.map((c) => DropdownMenuItem(
               value: c['id'] as String,
-              child: Text(c['name'] as String,
-                  style: const TextStyle(color: Colors.white, fontSize: 13)))).toList(),
-            onChanged: (v) {
-              setState(() {
-                _selectedCareerId = v;
-                _selectedCareerName = widget.careers
-                    .firstWhere((c) => c['id'] == v)['name'] as String;
-              });
-            },
+              child: Text(c['name'] as String, style: const TextStyle(color: Colors.white, fontSize: 13)))).toList(),
+            onChanged: (v) => setState(() {
+              _selectedCareerId = v;
+              _selectedCareerName = widget.careers.firstWhere((c) => c['id'] == v)['name'] as String;
+            }),
           ),
           const SizedBox(height: 14),
-
           _Field('Question', _qCtrl, maxLines: 3),
           const SizedBox(height: 14),
           _Field('Option A', _aCtrl),
@@ -566,7 +555,6 @@ class _AddQuestionSheetState extends State<_AddQuestionSheet> {
           const SizedBox(height: 10),
           _Field('Option C', _cCtrl),
           const SizedBox(height: 14),
-
           const Text('Correct answer', style: TextStyle(color: Colors.white54, fontSize: 12)),
           const SizedBox(height: 6),
           Row(children: ['a', 'b', 'c'].map((opt) => Padding(
@@ -579,8 +567,7 @@ class _AddQuestionSheetState extends State<_AddQuestionSheet> {
                 decoration: BoxDecoration(
                     color: _correct == opt ? const Color(0xFF059669) : const Color(0xFF0F0F1A),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _correct == opt
-                        ? const Color(0xFF059669) : Colors.white24)),
+                    border: Border.all(color: _correct == opt ? const Color(0xFF059669) : Colors.white24)),
                 child: Text(opt.toUpperCase(), style: TextStyle(
                     color: _correct == opt ? Colors.white : Colors.white38,
                     fontWeight: FontWeight.bold)),
@@ -588,10 +575,8 @@ class _AddQuestionSheetState extends State<_AddQuestionSheet> {
             ),
           )).toList()),
           const SizedBox(height: 14),
-
           _Field('Fun fact / Myth busted (shown after answering)', _factCtrl, maxLines: 3),
           const SizedBox(height: 20),
-
           SizedBox(width: double.infinity, child: ElevatedButton(
             style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF6C63FF),
@@ -608,16 +593,6 @@ class _AddQuestionSheetState extends State<_AddQuestionSheet> {
       ),
     );
   }
-
-  InputDecoration _inputDec(String hint) => InputDecoration(
-    hintText: hint, hintStyle: const TextStyle(color: Colors.white38),
-    filled: true, fillColor: const Color(0xFF0F0F1A),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Colors.white10)),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Colors.white10)),
-    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Color(0xFF6C63FF))));
 
   Widget _Field(String label, TextEditingController ctrl, {int maxLines = 1}) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -669,24 +644,19 @@ class _SupportTabState extends State<_SupportTab> {
       appBar: PreferredSize(preferredSize: const Size.fromHeight(40),
         child: Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: Row(children: [
-            const Text('Inbox', style: TextStyle(color: Colors.white,
-                fontWeight: FontWeight.bold, fontSize: 16)),
+            const Text('Inbox', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(width: 8),
             if (unreadTotal > 0) Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: const Color(0xFFDC2626),
-                  borderRadius: BorderRadius.circular(12)),
-              child: Text('$unreadTotal', style: const TextStyle(
-                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))),
+              decoration: BoxDecoration(color: const Color(0xFFDC2626), borderRadius: BorderRadius.circular(12)),
+              child: Text('$unreadTotal', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))),
             const Spacer(),
-            IconButton(icon: const Icon(Icons.refresh_rounded, color: Colors.white54, size: 18),
-                onPressed: _load),
+            IconButton(icon: const Icon(Icons.refresh_rounded, color: Colors.white54, size: 18), onPressed: _load),
           ]))),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
           : _threads.isEmpty
-              ? const Center(child: Text('📭  No messages yet',
-                  style: TextStyle(color: Colors.white38)))
+              ? const Center(child: Text('📭  No messages yet', style: TextStyle(color: Colors.white38)))
               : RefreshIndicator(onRefresh: _load,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(12),
@@ -715,15 +685,13 @@ class _SupportTabState extends State<_SupportTab> {
                             CircleAvatar(radius: 20,
                               backgroundColor: const Color(0xFF6C63FF).withOpacity(0.2),
                               child: Text((t['user_name'] as String? ?? '?').characters.first.toUpperCase(),
-                                  style: const TextStyle(color: Color(0xFF6C63FF),
-                                      fontWeight: FontWeight.bold))),
+                                  style: const TextStyle(color: Color(0xFF6C63FF), fontWeight: FontWeight.bold))),
                             const SizedBox(width: 10),
                             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Row(children: [
                                 Expanded(child: Text(t['user_name'] as String? ?? 'Unknown',
                                     style: TextStyle(color: Colors.white,
-                                        fontWeight: unread > 0 ? FontWeight.bold : FontWeight.normal,
-                                        fontSize: 13))),
+                                        fontWeight: unread > 0 ? FontWeight.bold : FontWeight.normal, fontSize: 13))),
                                 if (lastAt != null) Text(_fmt(lastAt),
                                     style: const TextStyle(color: Colors.white38, fontSize: 11)),
                               ]),
@@ -736,10 +704,8 @@ class _SupportTabState extends State<_SupportTab> {
                             ])),
                             if (unread > 0) Container(
                               padding: const EdgeInsets.all(6),
-                              decoration: const BoxDecoration(
-                                  color: Color(0xFFDC2626), shape: BoxShape.circle),
-                              child: Text('$unread', style: const TextStyle(
-                                  color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
+                              decoration: const BoxDecoration(color: Color(0xFFDC2626), shape: BoxShape.circle),
+                              child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
                           ]),
                         ),
                       );
@@ -759,22 +725,27 @@ class _TestLabTab extends StatelessWidget {
     children: [
       const _SectionHead('🧪 Test user-facing screens'),
       const SizedBox(height: 8),
-      _LabTile('🎯 Test Onboarding', 'Run full slider quiz — no data saved',
+      _LabTile('🎯', 'Test Onboarding', 'Run full quiz — no data saved',
           const Color(0xFF7C3AED), () => context.go('/admin-test-onboarding')),
-      _LabTile('🏠 Test Home Screen', 'Preview student home with your account',
+      _LabTile('🏠', 'Test Home Screen', 'Preview student home',
           const Color(0xFF059669), () => context.go('/admin-test-home')),
-      _LabTile('👁️ View as Any User', 'Pick a user and see their matches/interests',
+      _LabTile('👁️', 'View as Any User', 'See their matches and interests',
           const Color(0xFF0891B2), () => context.go('/admin-view-as')),
-      _LabTile('🎓 Test Career IQ Quiz', 'Take a quiz as a normal user',
+      _LabTile('🧠', 'Test Career IQ Quiz', 'Take a quiz as a normal user',
           const Color(0xFFD97706), () => context.go('/career-quiz')),
-      _LabTile('🗺️ Test Roadmap', 'View roadmap screen as student',
+      _LabTile('🗺️', 'Test Roadmap', 'View roadmap as student',
           const Color(0xFFDB2777), () => context.go('/roadmap')),
-      _LabTile('🔍 Test Explore / Courses', 'Browse careers and courses with filters',
+      _LabTile('🔍', 'Test Explore', 'Browse careers and courses',
           const Color(0xFF4F46E5), () => context.go('/explore')),
       const SizedBox(height: 24),
-      const _SectionHead('⚙️ System actions'),
+      const _SectionHead('🔙 Navigation'),
       const SizedBox(height: 8),
-      _LabTile('📋 Copy Admin User ID', 'Copy your Supabase UID to clipboard',
+      _LabTile('←', 'Back to Profile', 'Return to your profile page',
+          const Color(0xFF6B7280), () => context.go('/profile')),
+      const SizedBox(height: 24),
+      const _SectionHead('⚙️ System'),
+      const SizedBox(height: 8),
+      _LabTile('📋', 'Copy Admin UID', 'Copy your Supabase user ID',
           const Color(0xFF6B7280), () async {
             final uid = Supabase.instance.client.auth.currentUser?.id ?? '';
             await Clipboard.setData(ClipboardData(text: uid));
@@ -789,7 +760,7 @@ class _LabTile extends StatelessWidget {
   final String emoji, title, subtitle;
   final Color color;
   final VoidCallback onTap;
-  const _LabTile(this.title, this.subtitle, this.color, this.onTap, [this.emoji = '']);
+  const _LabTile(this.emoji, this.title, this.subtitle, this.color, this.onTap);
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -808,8 +779,7 @@ class _LabTile extends StatelessWidget {
           child: Center(child: Text(emoji, style: const TextStyle(fontSize: 20)))),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(color: Colors.white,
-              fontWeight: FontWeight.bold, fontSize: 13)),
+          Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
           Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 11)),
         ])),
         Icon(Icons.arrow_forward_ios_rounded, color: color.withOpacity(0.5), size: 14),
@@ -817,12 +787,3 @@ class _LabTile extends StatelessWidget {
     ),
   );
 }
-
-// ── Re-export screens used internally ────────────────────────────────────────
-
-// These are defined in their own files but referenced here:
-// AdminUserProfileView  → admin_view_as_screen.dart
-// AdminSupportThreadScreen → admin_support_screen.dart
-// Import both at the top of this file in your project:
-// import 'package:edupaths/features/admin/screens/admin_view_as_screen.dart';
-// import 'package:edupaths/features/admin/screens/admin_support_screen.dart';
