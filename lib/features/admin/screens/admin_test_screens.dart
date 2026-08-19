@@ -1,17 +1,8 @@
+// lib/features/admin/screens/admin_test_screens.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-/// Admin test wrappers — let admin run any user-facing screen
-/// without affecting their real admin account.
-///
-/// Upload to: lib/features/admin/screens/admin_test_screens.dart
-///
-/// Routes to add in your router:
-///   GoRoute(path: '/admin-test-onboarding', builder: (_, __) => const AdminTestOnboardingScreen()),
-///   GoRoute(path: '/admin-test-home',       builder: (_, __) => const AdminTestHomeScreen()),
-
-// ── Test Onboarding ───────────────────────────────────────────────────────────
+import '../../home/screens/home_screen.dart';
 
 class AdminTestOnboardingScreen extends StatelessWidget {
   const AdminTestOnboardingScreen({super.key});
@@ -34,14 +25,12 @@ class AdminTestOnboardingScreen extends StatelessWidget {
                 const Expanded(
                   child: Text(
                     'ADMIN TEST MODE — changes will NOT be saved',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
+                    style: TextStyle(color: Colors.white, fontSize: 12,
                         fontWeight: FontWeight.bold),
                   ),
                 ),
                 GestureDetector(
-                  onTap: () => context.go('/admin-home'),
+                  onTap: () => context.go('/admin'),
                   child: const Icon(Icons.close, color: Colors.white, size: 18),
                 ),
               ]),
@@ -55,7 +44,6 @@ class AdminTestOnboardingScreen extends StatelessWidget {
 
 class _TestOnboardingWrapper extends StatefulWidget {
   const _TestOnboardingWrapper();
-
   @override
   State<_TestOnboardingWrapper> createState() => _TestOnboardingWrapperState();
 }
@@ -127,10 +115,7 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
       for (final i in list) {
         _scores[i['id'] as String] = 3.0;
       }
-      setState(() {
-        _interests = list;
-        _loading = false;
-      });
+      setState(() { _interests = list; _loading = false; });
     } catch (e) {
       setState(() => _loading = false);
     }
@@ -140,11 +125,9 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
     if (_currentPage < _totalPages - 1) {
       setState(() => _currentPage++);
       _pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut);
+          duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
       _progressController.animateTo(_progress,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut);
+          duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
     } else {
       _showTestDoneDialog();
     }
@@ -157,18 +140,13 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('✅ Test complete!'),
         content: const Text(
-            'In real mode this would save to the DB and redirect to /home.\n\nNo data was saved — this was admin test mode.'),
+            'In real mode this saves to DB and redirects to home.\n\nNo data was saved — admin test mode.'),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              context.go('/admin-home');
-            },
-            child: const Text('Back to Admin'),
-          ),
+            onPressed: () { Navigator.pop(context); context.go('/admin'); },
+            child: const Text('Back to Admin')),
           FilledButton(
-            style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF6C63FF)),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
             onPressed: () {
               Navigator.pop(context);
               setState(() {
@@ -179,8 +157,7 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
               _pageController.jumpToPage(0);
               _progressController.value = 0;
             },
-            child: const Text('Play again'),
-          ),
+            child: const Text('Play again')),
         ],
       ),
     );
@@ -193,17 +170,6 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
     super.dispose();
   }
 
-  String _categoryEmoji(String? c) {
-    switch (c) {
-      case 'Technology': return '💻';
-      case 'Business': return '📈';
-      case 'Health and Human services': return '🏥';
-      case 'Science': return '🔬';
-      case 'Arts and Creativity': return '🎨';
-      default: return '⭐';
-    }
-  }
-
   Color _categoryColor(String? c) {
     switch (c) {
       case 'Technology': return const Color(0xFF4F46E5);
@@ -212,6 +178,17 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
       case 'Science': return const Color(0xFFD97706);
       case 'Arts and Creativity': return const Color(0xFFDB2777);
       default: return const Color(0xFF6C63FF);
+    }
+  }
+
+  String _categoryEmoji(String? c) {
+    switch (c) {
+      case 'Technology': return '💻';
+      case 'Business': return '📈';
+      case 'Health and Human services': return '🏥';
+      case 'Science': return '🔬';
+      case 'Arts and Creativity': return '🎨';
+      default: return '⭐';
     }
   }
 
@@ -246,18 +223,13 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
                           duration: const Duration(milliseconds: 300),
                           curve: Curves.easeInOut);
                     },
-                    icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-                  ),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(
-                      _isScenarioPage ? 'Quick scenarios' : 'What interests you?',
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                    ),
-                    Text('${_currentPage + 1} of $_totalPages',
-                        style: const TextStyle(fontSize: 13, color: Colors.black54)),
-                  ]),
-                ),
+                    icon: const Icon(Icons.arrow_back_ios_new, size: 20)),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(_isScenarioPage ? 'Quick scenarios' : 'What interests you?',
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  Text('${_currentPage + 1} of $_totalPages',
+                      style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                ])),
               ]),
             ),
             Padding(
@@ -265,15 +237,10 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: LinearProgressIndicator(
-                  value: _progress,
-                  minHeight: 6,
-                  backgroundColor: Colors.black12,
+                  value: _progress, minHeight: 6, backgroundColor: Colors.black12,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    _isScenarioPage
-                        ? const Color(0xFF7C3AED)
-                        : _categoryColor(_interests[_currentPage.clamp(
-                                0, _interests.length - 1)]['category'] as String?),
-                  ),
+                    _isScenarioPage ? const Color(0xFF7C3AED)
+                        : _categoryColor(_interests[_currentPage.clamp(0, _interests.length - 1)]['category'] as String?)),
                 ),
               ),
             ),
@@ -295,67 +262,34 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
                       padding: const EdgeInsets.all(20),
                       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(32),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
+                          width: double.infinity, padding: const EdgeInsets.all(32),
+                          decoration: BoxDecoration(color: Colors.white,
                             borderRadius: BorderRadius.circular(28),
-                            boxShadow: [BoxShadow(
-                                color: color.withOpacity(0.15),
-                                blurRadius: 24,
-                                offset: const Offset(0, 8))],
-                          ),
+                            boxShadow: [BoxShadow(color: color.withOpacity(0.15),
+                                blurRadius: 24, offset: const Offset(0, 8))]),
                           child: Column(children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: color.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                '${_categoryEmoji(category)} ${category ?? "General"}',
-                                style: TextStyle(
-                                    color: color,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13),
-                              ),
-                            ),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(color: color.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20)),
+                              child: Text('${_categoryEmoji(category)} ${category ?? "General"}',
+                                style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13))),
                             const SizedBox(height: 24),
-                            Text(name,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.bold,
-                                    height: 1.2)),
+                            Text(name, textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, height: 1.2)),
                             const SizedBox(height: 36),
                             SliderTheme(
                               data: SliderTheme.of(context).copyWith(
-                                activeTrackColor: color,
-                                inactiveTrackColor: color.withOpacity(0.15),
-                                thumbColor: color,
-                                overlayColor: color.withOpacity(0.12),
+                                activeTrackColor: color, inactiveTrackColor: color.withOpacity(0.15),
+                                thumbColor: color, overlayColor: color.withOpacity(0.12),
                                 trackHeight: 8,
-                                thumbShape: const RoundSliderThumbShape(
-                                    enabledThumbRadius: 14),
-                              ),
-                              child: Slider(
-                                value: score,
-                                min: 1, max: 5, divisions: 4,
-                                onChanged: (v) => setState(() => _scores[id] = v),
-                              ),
-                            ),
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14)),
+                              child: Slider(value: score, min: 1, max: 5, divisions: 4,
+                                onChanged: (v) => setState(() => _scores[id] = v))),
                             AnimatedSwitcher(
                               duration: const Duration(milliseconds: 200),
-                              child: Text(
-                                _sliderLabel(score),
-                                key: ValueKey(score.round()),
-                                style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w600,
-                                    color: color),
-                              ),
-                            ),
+                              child: Text(_sliderLabel(score), key: ValueKey(score.round()),
+                                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: color))),
                           ]),
                         ),
                       ]),
@@ -370,63 +304,33 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
                       padding: const EdgeInsets.all(20),
                       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(28),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
+                          width: double.infinity, padding: const EdgeInsets.all(28),
+                          decoration: BoxDecoration(color: Colors.white,
                             borderRadius: BorderRadius.circular(28),
-                            boxShadow: [BoxShadow(
-                                color: color.withOpacity(0.15),
-                                blurRadius: 24,
-                                offset: const Offset(0, 8))],
-                          ),
+                            boxShadow: [BoxShadow(color: color.withOpacity(0.15),
+                                blurRadius: 24, offset: const Offset(0, 8))]),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: color.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(color: color.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20)),
                               child: const Text('🎭 Quick scenario',
-                                  style: TextStyle(
-                                      color: color,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13)),
-                            ),
+                                style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13))),
                             const SizedBox(height: 20),
                             Text(q['question'] as String,
-                                style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    height: 1.35)),
+                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, height: 1.35)),
                             const SizedBox(height: 20),
-                            _OptionBox(
-                                text: q['optionA'] as String,
-                                isActive: axisScore >= 3.5,
-                                color: color),
+                            _OptionBox(text: q['optionA'] as String, isActive: axisScore >= 3.5, color: color),
                             const SizedBox(height: 8),
                             SliderTheme(
                               data: SliderTheme.of(context).copyWith(
-                                activeTrackColor: color,
-                                inactiveTrackColor: color.withOpacity(0.15),
-                                thumbColor: color,
-                                overlayColor: color.withOpacity(0.12),
+                                activeTrackColor: color, inactiveTrackColor: color.withOpacity(0.15),
+                                thumbColor: color, overlayColor: color.withOpacity(0.12),
                                 trackHeight: 8,
-                                thumbShape: const RoundSliderThumbShape(
-                                    enabledThumbRadius: 14),
-                              ),
-                              child: Slider(
-                                value: axisScore,
-                                min: 1, max: 5, divisions: 4,
-                                onChanged: (v) =>
-                                    setState(() => _scenarioScores[si] = v),
-                              ),
-                            ),
-                            _OptionBox(
-                                text: q['optionB'] as String,
-                                isActive: axisScore <= 2.5,
-                                color: color),
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14)),
+                              child: Slider(value: axisScore, min: 1, max: 5, divisions: 4,
+                                onChanged: (v) => setState(() => _scenarioScores[si] = v))),
+                            _OptionBox(text: q['optionB'] as String, isActive: axisScore <= 2.5, color: color),
                           ]),
                         ),
                       ]),
@@ -441,22 +345,16 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
                 width: double.infinity,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _isScenarioPage
-                        ? const Color(0xFF7C3AED)
-                        : _categoryColor(_interests[_currentPage.clamp(
-                                0, _interests.length - 1)]['category'] as String?),
+                    backgroundColor: _isScenarioPage ? const Color(0xFF7C3AED)
+                        : _categoryColor(_interests[_currentPage.clamp(0, _interests.length - 1)]['category'] as String?),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 18),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                    elevation: 0,
-                  ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 0),
                   onPressed: _next,
                   child: Text(
                     _currentPage < _totalPages - 1 ? 'Next →' : 'Finish test 🧪',
-                    style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.bold),
-                  ),
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
                 ),
               ),
             ),
@@ -482,21 +380,15 @@ class _OptionBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: isActive ? color.withOpacity(0.1) : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isActive ? color : Colors.grey.shade200,
-          width: isActive ? 2 : 1,
-        ),
-      ),
-      child: Text(text,
-          style: TextStyle(
-              fontSize: 13,
-              color: isActive ? color : Colors.black54,
-              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
+        border: Border.all(color: isActive ? color : Colors.grey.shade200, width: isActive ? 2 : 1)),
+      child: Text(text, style: TextStyle(fontSize: 13,
+          color: isActive ? color : Colors.black54,
+          fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
     );
   }
 }
 
-// ── Test Home Screen ──────────────────────────────────────────────────────────
+// ── Test Home Screen — shows real HomeScreen with admin banner ────────────────
 
 class AdminTestHomeScreen extends StatelessWidget {
   const AdminTestHomeScreen({super.key});
@@ -505,17 +397,10 @@ class AdminTestHomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // TODO: replace with your real HomeScreen widget
-        // e.g.: const HomeScreen(),
-        const Scaffold(
-          body: Center(
-            child: Text(
-              'Add your HomeScreen widget here.\n\nReplace this placeholder in admin_test_screens.dart',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.black45),
-            ),
-          ),
-        ),
+        // Real home screen
+        const HomeScreen(),
+
+        // Admin banner
         Positioned(
           top: 0, left: 0, right: 0,
           child: SafeArea(
@@ -524,20 +409,15 @@ class AdminTestHomeScreen extends StatelessWidget {
               color: const Color(0xFFDC2626),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(children: [
-                const Icon(Icons.visibility_rounded,
-                    color: Colors.white, size: 16),
+                const Icon(Icons.visibility_rounded, color: Colors.white, size: 16),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text('ADMIN VIEW — Student home preview',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold)),
-                ),
+                    style: TextStyle(color: Colors.white, fontSize: 12,
+                        fontWeight: FontWeight.bold))),
                 GestureDetector(
-                  onTap: () => context.go('/admin-home'),
-                  child: const Icon(Icons.close, color: Colors.white, size: 18),
-                ),
+                  onTap: () => context.go('/admin'),
+                  child: const Icon(Icons.close, color: Colors.white, size: 18)),
               ]),
             ),
           ),
