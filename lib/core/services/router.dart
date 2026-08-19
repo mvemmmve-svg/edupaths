@@ -7,7 +7,6 @@ import '../constants/app_constants.dart';
 import '../router/app_router.dart' show NotFoundScreen;
 import '../../features/auth/screens/auth_screens.dart';
 import '../../features/onboarding/screens/onboarding_screens.dart';
-import '../../features/onboarding/demo_onboarding_screen.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/explore/screens/explore_screen.dart';
 import '../../features/careers/screens/career_screens.dart';
@@ -34,7 +33,7 @@ const _loginRequired = {
 };
 
 // Routes that logged-in users should not see
-const _authRoutes = {'/', '/welcome', '/login', '/signup', '/demo'};
+const _authRoutes = {'/', '/welcome', '/login', '/signup'};
 
 // Single global navigator key — must not be recreated on rebuild
 final _navigatorKey = GlobalKey<NavigatorState>();
@@ -46,7 +45,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _navigatorKey,
     refreshListenable: notifier,
-    initialLocation: '/demo',
+    initialLocation: AppConstants.routeSplash,
     redirect: (context, state) {
       final isLoggedIn = Supabase.instance.client.auth.currentUser != null;
       final loc = state.matchedLocation;
@@ -87,10 +86,6 @@ final routerProvider = Provider<GoRouter>((ref) {
     // F6 — branded 404 for any unknown path (never a blank/default error page)
     errorBuilder: (context, state) => const NotFoundScreen(),
     routes: [
-      // ── Demo (pre-login taste of the app) ─────────────────
-      GoRoute(path: '/demo',
-        builder: (c, s) => const DemoOnboardingScreen()),
-
       // ── Public routes ──────────────────────────────────────
       GoRoute(path: AppConstants.routeSplash,
         builder: (c, s) => const SplashScreen()),
