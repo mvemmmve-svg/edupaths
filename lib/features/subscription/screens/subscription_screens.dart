@@ -1,366 +1,703 @@
 // lib/features/subscription/screens/subscription_screens.dart
+// REPLACES your existing subscription_screens.dart
+// Incorporates the three pricing models from the screenshots:
+//   - Student Premium (£2.99/mo, £19.99/yr, £9.99 results-day offer)
+//   - Parent Premium  (£4.99/mo, £39.99/yr, £59.99 family)
+//   - School/Advisor  (£149/yr starter, £299/yr standard, £499/yr whole school)
+
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../core/services/db_service.dart';
-import '../../../core/services/providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/shared_widgets.dart';
 
-class _Plan {
-  final String id, name, emoji;
-  final int monthlyPence, yearlyPence;
-  final Color color;
-  final String? badge;
-  final List<String> features, missing;
-  const _Plan({required this.id, required this.name, required this.emoji,
-    required this.monthlyPence, required this.yearlyPence, required this.color,
-    this.badge, required this.features, required this.missing});
-  String get monthlyDisplay => monthlyPence == 0 ? 'Free' : '£${(monthlyPence / 100).toStringAsFixed(2)}/mo';
-  String get yearlyDisplay  => yearlyPence == 0  ? 'Free' : '£${(yearlyPence / 100).toStringAsFixed(2)}/yr';
-  String price(bool yearly) => yearly ? yearlyDisplay : monthlyDisplay;
-}
-
-const _plans = [
-  _Plan(
-    id: AppConstants.planFree, name: 'Free', emoji: '🆓',
-    monthlyPence: 0, yearlyPence: 0, color: Color(0xFF64748B),
-    features: ['3 AI career matches', 'Basic roadmap view', 'Browse careers & courses',
-      'EduBot (5 messages/day)'],
-    missing: ['Unlimited AI recommendations', 'Full roadmap builder',
-      'Uni comparisons', 'Parent dashboard'],
-  ),
-  _Plan(
-    id: AppConstants.planPremium, name: 'Premium', emoji: '⭐',
-    monthlyPence: 599, yearlyPence: 4999,
-    color: AppColors.primary, badge: 'Most Popular',
-    features: ['Unlimited AI matches', 'Full EduBot access', 'Full roadmap builder',
-      'University comparisons', 'Application tracker', 'Scholarship alerts',
-      'Parent dashboard', '7-day free trial'],
-    missing: [],
-  ),
-];
-
-class PricingScreen extends ConsumerStatefulWidget {
+// ══════════════════════════════════════════════
+// PRICING SCREEN (tab-based: Student / Parent / School)
+// ══════════════════════════════════════════════
+class PricingScreen extends StatefulWidget {
   const PricingScreen({super.key});
   @override
-  ConsumerState<PricingScreen> createState() => _PricingState();
+  State<PricingScreen> createState() => _PricingScreenState();
 }
 
-class _PricingState extends ConsumerState<PricingScreen> {
-  bool _yearly = false;
+class _PricingScreenState extends State<PricingScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tab;
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final subAsync = ref.watch(subscriptionProvider);
     return Scaffold(
       backgroundColor: AppColors.bgPage,
-      body: CustomScrollView(slivers: [
-        SliverAppBar(
-          expandedHeight: 180, pinned: true,
-          backgroundColor: AppColors.primary,
-          leading: GestureDetector(onTap: () => context.pop(),
-            child: Container(margin: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.arrow_back_rounded, color: Colors.white))),
-          flexibleSpace: FlexibleSpaceBar(
-            background: Container(
-              decoration: gradientBox(radius: 0),
-              child: SafeArea(child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
-                child: Column(mainAxisAlignment: MainAxisAlignment.end,
-                  children: const [
-                  Text('👑', style: TextStyle(fontSize: 36)),
-                  Text('Unlock Your Full Future',
+      body: SafeArea(
+        child: Column(children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: Row(children: [
+              IconButton(
+                onPressed: () => context.pop(),
+                icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+              ),
+              const Expanded(
+                child: Text('Choose a plan',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontFamily: 'Nunito', fontSize: 22,
-                      fontWeight: FontWeight.w900, color: Colors.white)),
-                  Text('with Premium', style: TextStyle(fontFamily: 'Nunito',
-                    fontSize: 15, color: Colors.white70, fontWeight: FontWeight.w600)),
-                ]),
-              )),
+                    style: TextStyle(
+                        fontFamily: 'Nunito',
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900)),
+              ),
+              const SizedBox(width: 40),
+            ]),
+          ),
+          const SizedBox(height: 8),
+          // Tab bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.bgSurface,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TabBar(
+                controller: _tab,
+                labelColor: Colors.white,
+                unselectedLabelColor: AppColors.textMid,
+                indicator: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                tabs: const [
+                  Tab(text: 'Student'),
+                  Tab(text: 'Parent'),
+                  Tab(text: 'School'),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tab,
+              children: const [
+                _StudentPricing(),
+                _ParentPricing(),
+                _SchoolPricing(),
+              ],
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Student pricing ────────────────────────────────────────────────────
+class _StudentPricing extends StatefulWidget {
+  const _StudentPricing();
+  @override
+  State<_StudentPricing> createState() => _StudentPricingState();
+}
+
+class _StudentPricingState extends State<_StudentPricing> {
+  String _selected = 'annual';
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const _SectionLabel('Student Premium'),
+        const SizedBox(height: 4),
+        const Text('Everything you need to find your perfect career path.',
+            style: TextStyle(fontSize: 13, color: AppColors.textMid)),
+        const SizedBox(height: 20),
+
+        // Plan cards
+        _PlanCard(
+          id: 'monthly',
+          selected: _selected == 'monthly',
+          label: 'Monthly',
+          price: '£2.99',
+          period: '/month',
+          badge: null,
+          detail: 'Impulse buy — less than a coffee',
+          onTap: () => setState(() => _selected = 'monthly'),
+        ),
+        const SizedBox(height: 10),
+        _PlanCard(
+          id: 'annual',
+          selected: _selected == 'annual',
+          label: 'Annual',
+          price: '£19.99',
+          period: '/year',
+          badge: 'Best value',
+          detail: '44% saving — serious students choose this',
+          onTap: () => setState(() => _selected = 'annual'),
+        ),
+        const SizedBox(height: 10),
+        _PlanCard(
+          id: 'results',
+          selected: _selected == 'results',
+          label: 'Results day offer',
+          price: '£9.99',
+          period: '/year',
+          badge: 'Limited offer',
+          detail: 'GCSE/A-Level results day promotion',
+          onTap: () => setState(() => _selected = 'results'),
+          badgeColor: AppColors.accentOrange,
+        ),
+        const SizedBox(height: 24),
+
+        // Features
+        const _FeatureList(features: [
+          ('🔓', 'Unlimited career matches'),
+          ('🗺️', 'Full roadmaps with grade requirements'),
+          ('🤖', 'EduBot AI — up to 50 messages/day'),
+          ('📝', 'Personal statement builder'),
+          ('⚖️', 'Compare career routes side-by-side'),
+          ('📄', 'Download your career plan as PDF'),
+          ('💰', 'Salary insights and progression data'),
+          ('🚫', 'Ad-free experience'),
+        ]),
+        const SizedBox(height: 24),
+
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              elevation: 0,
+            ),
+            onPressed: () => context.push(
+                '/checkout?plan=premium&cycle=$_selected'),
+            child: Text(
+              _selected == 'monthly'
+                  ? 'Start for £2.99/month'
+                  : _selected == 'annual'
+                      ? 'Get Annual for £19.99'
+                      : 'Claim Results Day offer',
+              style: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ),
         ),
-        SliverList(delegate: SliverChildListDelegate([const SizedBox(height: 0),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: EduCard(padding: const EdgeInsets.all(6),
-              child: Row(children: [
-                Expanded(child: GestureDetector(
-                  onTap: () => setState(() => _yearly = false),
-                  child: Container(padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: !_yearly ? AppColors.primary : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10)),
-                    child: Text('Monthly', textAlign: TextAlign.center,
-                      style: TextStyle(fontFamily: 'Nunito', fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: !_yearly ? Colors.white : AppColors.textMid))))),
-                Expanded(child: GestureDetector(
-                  onTap: () => setState(() => _yearly = true),
-                  child: Container(padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: _yearly ? AppColors.primary : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10)),
-                    child: Column(children: [
-                      Text('Yearly', textAlign: TextAlign.center,
-                        style: TextStyle(fontFamily: 'Nunito', fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: _yearly ? Colors.white : AppColors.textMid)),
-                      Text('Save 30%', style: TextStyle(fontFamily: 'Nunito',
-                        fontSize: 10, fontWeight: FontWeight.w700,
-                        color: _yearly ? Colors.white70 : AppColors.accentGreen)),
-                    ])))),
-              ]))),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(children: _plans.map((plan) {
-              final current = subAsync.valueOrNull?.plan == plan.id;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: _PlanCard(plan: plan, yearly: _yearly, current: current,
-                  onTap: plan.monthlyPence == 0 ? null : () => context.push(
-                    '${AppConstants.routeCheckout}?plan=${plan.id}&cycle=${_yearly ? "yearly" : "monthly"}')));
-            }).toList())),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 0, 20, 30),
-            child: Text('Cancel anytime. No commitment. 7-day free trial on all paid plans.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: AppColors.textLight))),
-        ])),
+        const SizedBox(height: 12),
+        const Center(
+          child: Text('Cancel anytime · Secure payment via Stripe',
+              style: TextStyle(fontSize: 12, color: AppColors.textLight)),
+        ),
       ]),
     );
   }
 }
 
-class _PlanCard extends StatelessWidget {
-  final _Plan plan;
-  final bool yearly, current;
-  final VoidCallback? onTap;
-  const _PlanCard({required this.plan, required this.yearly, required this.current, this.onTap});
+// ── Parent pricing ──────────────────────────────────────────────────────
+class _ParentPricing extends StatefulWidget {
+  const _ParentPricing();
+  @override
+  State<_ParentPricing> createState() => _ParentPricingState();
+}
+
+class _ParentPricingState extends State<_ParentPricing> {
+  String _selected = 'annual';
+
   @override
   Widget build(BuildContext context) {
-    final isPop = plan.badge == 'Most Popular';
-    return Stack(clipBehavior: Clip.none, children: [
-      Container(
-        decoration: BoxDecoration(
-          color: AppColors.bgCard,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isPop ? plan.color : AppColors.border, width: isPop ? 2 : 1.5),
-          boxShadow: isPop ? [BoxShadow(color: plan.color.withOpacity(0.15),
-            blurRadius: 20, offset: const Offset(0, 4))] : []),
-        padding: const EdgeInsets.all(20),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Text(plan.emoji, style: const TextStyle(fontSize: 24)),
-            const SizedBox(width: 10),
-            Text(plan.name, style: TextStyle(fontFamily: 'Nunito',
-              fontSize: 18, fontWeight: FontWeight.w900, color: plan.color)),
-            const Spacer(),
-            Text(plan.price(yearly), style: const TextStyle(fontFamily: 'Nunito',
-              fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.textDark)),
-          ]),
-          if (plan.monthlyPence > 0) const Padding(
-            padding: EdgeInsets.only(top: 4),
-            child: Text('7-day free trial included!', style: TextStyle(
-              fontFamily: 'Nunito', fontSize: 11,
-              color: AppColors.accentGreen, fontWeight: FontWeight.w700))),
-          const SizedBox(height: 14),
-          ...plan.features.map((f) => Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(children: [
-              Icon(Icons.check_circle_rounded, size: 16, color: plan.color),
-              const SizedBox(width: 8),
-              Expanded(child: Text(f, style: const TextStyle(
-                fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w600))),
-            ]))),
-          if (plan.missing.isNotEmpty) ...plan.missing.map((f) => Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(children: [
-              const Icon(Icons.remove_circle_outline_rounded,
-                size: 16, color: AppColors.textLight),
-              const SizedBox(width: 8),
-              Expanded(child: Text(f, style: const TextStyle(
-                fontFamily: 'Nunito', fontSize: 13, color: AppColors.textLight))),
-            ]))),
-          const SizedBox(height: 14),
-          current
-            ? Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(color: AppColors.bgGrey,
-                  borderRadius: BorderRadius.circular(12)),
-                child: const Text('Current Plan', textAlign: TextAlign.center,
-                  style: TextStyle(fontFamily: 'Nunito', fontSize: 14,
-                    fontWeight: FontWeight.w800, color: AppColors.textMid)))
-            : GestureDetector(
-                onTap: plan.monthlyPence == 0 ? null : onTap,
-                child: Container(
-                  width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    gradient: plan.monthlyPence == 0 ? null
-                        : LinearGradient(colors: [plan.color, plan.color.withOpacity(0.8)]),
-                    color: plan.monthlyPence == 0 ? AppColors.bgGrey : null,
-                    borderRadius: BorderRadius.circular(12)),
-                  child: Text(plan.monthlyPence == 0 ? 'Current Plan' : 'Start Free Trial',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontFamily: 'Nunito', fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: plan.monthlyPence == 0 ? AppColors.textLight : Colors.white)))),
-        ])),
-      if (plan.badge != null && !current) Positioned(top: -10, right: 16,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(color: plan.color, borderRadius: BorderRadius.circular(999)),
-          child: Text(plan.badge!, style: const TextStyle(
-            fontFamily: 'Nunito', fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)))),
-    ]);
-  }
-}
-
-class CheckoutScreen extends ConsumerStatefulWidget {
-  final String plan, cycle;
-  const CheckoutScreen({super.key, required this.plan, required this.cycle});
-  @override
-  ConsumerState<CheckoutScreen> createState() => _CheckoutState();
-}
-
-class _CheckoutState extends ConsumerState<CheckoutScreen> {
-  int _payMethod = 0;
-  bool _loading = false;
-
-  String get _planName {
-    switch (widget.plan) {
-      case AppConstants.planPremiumPlus: return 'Premium+';
-      case AppConstants.planPremium: return 'Premium';
-      default: return 'Free';
-    }
-  }
-
-  int get _pricePence {
-    final isYearly = widget.cycle == 'yearly';
-    if (widget.plan == AppConstants.planPremiumPlus) return isYearly ? 7999 : 999;
-    return isYearly ? 4999 : 599;
-  }
-
-  String get _priceDisplay => '£${(_pricePence / 100).toStringAsFixed(2)}';
-  String get _cycleLabel => widget.cycle == 'yearly' ? '/year' : '/month';
-
-  Future<void> _subscribe() async {
-    setState(() => _loading = true);
-    await DbService.activatePlan(widget.plan, widget.cycle);
-    ref.invalidate(subscriptionProvider);
-    await Future.delayed(const Duration(seconds: 1));
-    if (!mounted) return;
-    setState(() => _loading = false);
-    showDialog(context: context, builder: (_) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('🎉', style: TextStyle(fontSize: 48)),
-        const SizedBox(height: 12),
-        Text('Welcome to $_planName!', textAlign: TextAlign.center,
-          style: const TextStyle(fontFamily: 'Nunito', fontSize: 20,
-            fontWeight: FontWeight.w900)),
-        const SizedBox(height: 6),
-        const Text('Your 7-day free trial has started!', textAlign: TextAlign.center,
-          style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: AppColors.textMid)),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const _SectionLabel('Parent Premium'),
+        const SizedBox(height: 4),
+        const Text('Stay involved in your child\'s career journey.',
+            style: TextStyle(fontSize: 13, color: AppColors.textMid)),
         const SizedBox(height: 20),
-        PrimaryBtn(label: 'Lets Go!', onPressed: () {
-          Navigator.pop(context);
-          context.go(AppConstants.routeHome);
-        }),
+
+        _PlanCard(
+          id: 'monthly',
+          selected: _selected == 'monthly',
+          label: 'Monthly',
+          price: '£4.99',
+          period: '/month',
+          badge: null,
+          detail: 'Parents have more disposable income than students',
+          onTap: () => setState(() => _selected = 'monthly'),
+        ),
+        const SizedBox(height: 10),
+        _PlanCard(
+          id: 'annual',
+          selected: _selected == 'annual',
+          label: 'Annual',
+          price: '£39.99',
+          period: '/year',
+          badge: 'Best value',
+          detail: 'Covers the whole school year',
+          onTap: () => setState(() => _selected = 'annual'),
+        ),
+        const SizedBox(height: 10),
+        _PlanCard(
+          id: 'family',
+          selected: _selected == 'family',
+          label: 'Family (up to 3 children)',
+          price: '£59.99',
+          period: '/year',
+          badge: 'Family',
+          detail: 'Increases value for larger families',
+          onTap: () => setState(() => _selected = 'family'),
+          badgeColor: const Color(0xFF059669),
+        ),
+        const SizedBox(height: 24),
+
+        const _FeatureList(features: [
+          ('👀', 'View your child\'s career matches'),
+          ('🗺️', 'Track roadmap progress'),
+          ('⭐', 'See interests and strengths profile'),
+          ('✏️', 'Edit child profile and regenerate matches'),
+          ('📰', 'Parents Hub — options, revision, wellbeing'),
+          ('🤖', 'EduBot AI access'),
+          ('📊', 'Salary and route comparison data'),
+          ('👨‍👩‍👧', 'Add up to 3 children (family plan)'),
+        ]),
+        const SizedBox(height: 24),
+
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              elevation: 0,
+            ),
+            onPressed: () => context.push(
+                '/checkout?plan=parent&cycle=$_selected'),
+            child: Text(
+              _selected == 'monthly'
+                  ? 'Start for £4.99/month'
+                  : _selected == 'annual'
+                      ? 'Get Annual for £39.99'
+                      : 'Get Family plan for £59.99',
+              style: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Center(
+          child: Text('Cancel anytime · Secure payment via Stripe',
+              style: TextStyle(fontSize: 12, color: AppColors.textLight)),
+        ),
       ]),
-    ));
+    );
+  }
+}
+
+// ── School / Advisor pricing ────────────────────────────────────────────
+class _SchoolPricing extends StatefulWidget {
+  const _SchoolPricing();
+  @override
+  State<_SchoolPricing> createState() => _SchoolPricingState();
+}
+
+class _SchoolPricingState extends State<_SchoolPricing> {
+  String _selected = 'standard';
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const _SectionLabel('School Advisor Platform'),
+        const SizedBox(height: 4),
+        const Text(
+            'Gatsby-compliant careers guidance at a fraction of the cost of Unifrog.',
+            style: TextStyle(fontSize: 13, color: AppColors.textMid)),
+        const SizedBox(height: 20),
+
+        _PlanCard(
+          id: 'starter',
+          selected: _selected == 'starter',
+          label: 'Starter',
+          price: '£149',
+          period: '/year',
+          badge: null,
+          detail: 'Up to 100 students · Affordable entry for small schools',
+          onTap: () => setState(() => _selected = 'starter'),
+        ),
+        const SizedBox(height: 10),
+        _PlanCard(
+          id: 'standard',
+          selected: _selected == 'standard',
+          label: 'Standard',
+          price: '£299',
+          period: '/year',
+          badge: 'Most popular',
+          detail: 'Up to 300 students · Your current cohort_300 tier',
+          onTap: () => setState(() => _selected = 'standard'),
+        ),
+        const SizedBox(height: 10),
+        _PlanCard(
+          id: 'wholeschool',
+          selected: _selected == 'wholeschool',
+          label: 'Whole School',
+          price: '£499',
+          period: '/year',
+          badge: 'Best value',
+          detail: 'Unlimited students · Compete with Unifrog at 1/10th the price',
+          onTap: () => setState(() => _selected = 'wholeschool'),
+        ),
+        const SizedBox(height: 20),
+
+        // Gatsby callout
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.07),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('📋 Gatsby Benchmarks met',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      color: AppColors.primary)),
+              const SizedBox(height: 8),
+              ...[
+                'Benchmark 2 — Real LMI, salary data and entry requirements for 99 careers',
+                'Benchmark 3 — Personalised matching unique to every student',
+                'Benchmark 7 — University, apprenticeship and FE routes for all careers',
+              ].map((t) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.check_circle_outline,
+                        size: 16, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(t,
+                          style: const TextStyle(
+                              fontSize: 13, color: AppColors.primary,
+                              height: 1.4)),
+                    ),
+                  ],
+                ),
+              )),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        const _FeatureList(features: [
+          ('🏫', 'School advisor portal with cohort overview'),
+          ('📤', 'CSV student upload'),
+          ('🔑', 'Kahoot-style join-school cohort codes'),
+          ('👩‍🎓', 'View individual student matches and roadmaps'),
+          ('📊', 'Interest and strength profiles per student'),
+          ('📨', 'Broadcast messages to your cohort'),
+          ('📋', 'Gatsby benchmark reporting'),
+        ]),
+        const SizedBox(height: 24),
+
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0891B2),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              elevation: 0,
+            ),
+            onPressed: () => context.push(
+                '/checkout?plan=school&cycle=$_selected'),
+            child: Text(
+              _selected == 'starter'
+                  ? 'Get Starter for £149/year'
+                  : _selected == 'standard'
+                      ? 'Get Standard for £299/year'
+                      : 'Get Whole School for £499/year',
+              style: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Center(
+          child: Text('Invoice available · Secure payment via Stripe',
+              style: TextStyle(fontSize: 12, color: AppColors.textLight)),
+        ),
+      ]),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════
+// CHECKOUT SCREEN (UI shell — Stripe not yet wired)
+// ══════════════════════════════════════════════
+class CheckoutScreen extends StatelessWidget {
+  final String plan;
+  final String cycle;
+  const CheckoutScreen({super.key, required this.plan, required this.cycle});
+
+  String get _displayPrice {
+    if (plan == 'premium') {
+      if (cycle == 'monthly') return '£2.99/month';
+      if (cycle == 'results') return '£9.99/year';
+      return '£19.99/year';
+    }
+    if (plan == 'parent') {
+      if (cycle == 'monthly') return '£4.99/month';
+      if (cycle == 'family') return '£59.99/year';
+      return '£39.99/year';
+    }
+    if (plan == 'school') {
+      if (cycle == 'starter') return '£149/year';
+      if (cycle == 'wholeschool') return '£499/year';
+      return '£299/year';
+    }
+    return '';
+  }
+
+  String get _displayName {
+    if (plan == 'premium') return 'Student Premium';
+    if (plan == 'parent') return 'Parent Premium';
+    if (plan == 'school') return 'School Advisor Platform';
+    return 'EduPaths Premium';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgPage,
-      appBar: AppBar(title: const Text('Complete Your Purchase'),
-        leading: GestureDetector(onTap: () => context.pop(), child: const BackBtn())),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          EduCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Order Summary', style: TextStyle(
-              fontFamily: 'Nunito', fontSize: 15, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 14),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('EduPaths $_planName'),
-              Text('$_priceDisplay$_cycleLabel', style: const TextStyle(
-                fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w800)),
-            ]),
-            const Divider(height: 24),
-            const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('7-day free trial', style: TextStyle(
-                fontFamily: 'Nunito', fontSize: 13, color: AppColors.textMid)),
-              Text('Free today', style: TextStyle(fontFamily: 'Nunito',
-                fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.accentGreen)),
-            ]),
-            const SizedBox(height: 6),
-            Text('Then $_priceDisplay$_cycleLabel after trial. Cancel anytime.',
-              style: const TextStyle(fontFamily: 'Nunito', fontSize: 11, color: AppColors.textLight)),
-          ])),
-          const SizedBox(height: 20),
-          const Text('Payment Method', style: TextStyle(
-            fontFamily: 'Nunito', fontSize: 15, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 12),
-          _PayOption(index: 0, selected: _payMethod, emoji: '💳', label: 'Credit / Debit Card',
-            onTap: () => setState(() => _payMethod = 0)),
-          const SizedBox(height: 8),
-          _PayOption(index: 1, selected: _payMethod, emoji: '🍎', label: 'Apple Pay',
-            onTap: () => setState(() => _payMethod = 1)),
-          const SizedBox(height: 8),
-          _PayOption(index: 2, selected: _payMethod, emoji: '🔵', label: 'Google Pay',
-            onTap: () => setState(() => _payMethod = 2)),
-          const SizedBox(height: 28),
-          PrimaryBtn(label: 'Start 7-Day Free Trial', onPressed: _subscribe, isLoading: _loading),
-          const SizedBox(height: 12),
-          const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.lock_outline, size: 14, color: AppColors.textLight),
-            SizedBox(width: 4),
-            Text('Secure checkout. Cancel anytime.',
-              style: TextStyle(fontFamily: 'Nunito', fontSize: 11, color: AppColors.textLight)),
+      appBar: AppBar(
+        backgroundColor: AppColors.bgPage,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => context.pop(),
+        ),
+        title: const Text('Checkout',
+            style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(children: [
+            const Spacer(),
+            const Icon(Icons.lock_outline, size: 48, color: AppColors.primary),
+            const SizedBox(height: 16),
+            Text(_displayName,
+                style: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            Text(_displayPrice,
+                style: const TextStyle(
+                    fontSize: 18, color: AppColors.primary,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(height: 32),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.bgCard,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Row(children: [
+                Icon(Icons.info_outline, color: AppColors.textMid),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Stripe payment integration coming soon. Tap below to join the waitlist and be first to know when premium launches.',
+                    style: TextStyle(fontSize: 14, color: AppColors.textMid, height: 1.5),
+                  ),
+                ),
+              ]),
+            ),
+            const Spacer(),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                ),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text("You're on the waitlist! We'll email you when payments go live."),
+                  ));
+                  context.pop();
+                },
+                child: const Text("Join the waitlist",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
           ]),
-        ]),
+        ),
       ),
     );
   }
 }
 
-class _PayOption extends StatelessWidget {
-  final int index, selected;
-  final String emoji, label;
-  final VoidCallback onTap;
-  const _PayOption({required this.index, required this.selected,
-    required this.emoji, required this.label, required this.onTap});
+// ══════════════════════════════════════════════
+// Shared widgets
+// ══════════════════════════════════════════════
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
   @override
-  Widget build(BuildContext context) {
-    final sel = index == selected;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: sel ? AppColors.primaryPale : AppColors.bgCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: sel ? AppColors.primary : AppColors.border, width: sel ? 2 : 1.5)),
-        child: Row(children: [
-          Text(emoji, style: const TextStyle(fontSize: 20)),
-          const SizedBox(width: 12),
-          Text(label, style: const TextStyle(fontFamily: 'Nunito',
-            fontSize: 14, fontWeight: FontWeight.w700)),
-          const Spacer(),
-          AnimatedContainer(duration: const Duration(milliseconds: 180),
-            width: 22, height: 22,
-            decoration: BoxDecoration(shape: BoxShape.circle,
-              color: sel ? AppColors.primary : Colors.transparent,
-              border: Border.all(color: sel ? AppColors.primary : AppColors.border, width: 2)),
-            child: sel ? const Icon(Icons.check, color: Colors.white, size: 12) : null),
-        ]),
+  Widget build(BuildContext context) => Text(text,
+      style: const TextStyle(
+          fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w900));
+}
+
+class _PlanCard extends StatelessWidget {
+  final String id, label, price, period;
+  final String? badge;
+  final String detail;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color badgeColor;
+
+  const _PlanCard({
+    required this.id,
+    required this.selected,
+    required this.label,
+    required this.price,
+    required this.period,
+    required this.badge,
+    required this.detail,
+    required this.onTap,
+    this.badgeColor = AppColors.primary,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: selected ? AppColors.primaryPale : AppColors.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: selected ? AppColors.primary : AppColors.border,
+          width: selected ? 2 : 1.5,
+        ),
       ),
-    );
-  }
+      child: Row(children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: 22, height: 22,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: selected ? AppColors.primary : Colors.transparent,
+            border: Border.all(
+              color: selected ? AppColors.primary : AppColors.border,
+              width: 2,
+            ),
+          ),
+          child: selected
+              ? const Icon(Icons.check, color: Colors.white, size: 13)
+              : null,
+        ),
+        const SizedBox(width: 14),
+        Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Text(label, style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                  color: selected ? AppColors.primary : AppColors.textDark)),
+              if (badge != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: badgeColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(badge!,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800)),
+                ),
+              ],
+            ]),
+            const SizedBox(height: 2),
+            Text(detail,
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textMid)),
+          ],
+        )),
+        const SizedBox(width: 10),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text(price, style: TextStyle(
+              fontFamily: 'Nunito',
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              color: selected ? AppColors.primary : AppColors.textDark)),
+          Text(period, style: const TextStyle(
+              fontSize: 11, color: AppColors.textMid)),
+        ]),
+      ]),
+    ),
+  );
+}
+
+class _FeatureList extends StatelessWidget {
+  final List<(String, String)> features;
+  const _FeatureList({required this.features});
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text("What's included",
+          style: TextStyle(
+              fontFamily: 'Nunito',
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textMid)),
+      const SizedBox(height: 10),
+      ...features.map((f) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(children: [
+          Text(f.$1, style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 12),
+          Expanded(child: Text(f.$2,
+              style: const TextStyle(fontSize: 14, color: AppColors.textDark))),
+        ]),
+      )),
+    ],
+  );
 }
