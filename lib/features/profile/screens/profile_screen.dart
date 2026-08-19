@@ -68,8 +68,7 @@ class ProfileScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
 
-          // Stats (only if logged in)
-          // ── My Badges — earned from real activity ──
+          // Badges
           if (isLoggedIn) ...[
             const SectionHeader(title: 'My Badges 🏅'),
             const SizedBox(height: 8),
@@ -88,8 +87,7 @@ class ProfileScreen extends ConsumerWidget {
               return EduCard(child: Wrap(spacing: 8, runSpacing: 8, children: [
                 for (final b in badges)
                   Tooltip(message: b.$3, child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     decoration: BoxDecoration(
                       color: b.$4 ? AppColors.primaryPale : AppColors.bgGrey,
                       borderRadius: BorderRadius.circular(12),
@@ -134,23 +132,19 @@ class ProfileScreen extends ConsumerWidget {
           if (isLoggedIn) ...[
             _MenuItem(emoji: '👤', label: 'Account Details',
               onTap: () => _showPersonalInfo(context, ref)),
-            // Advisor portal — only for advisor accounts (and admins)
             userAsync.when(
               loading: () => const SizedBox(), error: (_, __) => const SizedBox(),
               data: (user) => (user?.roleType == 'advisor' || user?.isAdmin == true)
                 ? _MenuItem(emoji: '🏫', label: 'School Advisor Portal',
                     onTap: () => context.push('/school-advisor'))
                 : const SizedBox()),
-            _MenuItem(emoji: '🎯', label: 'Interests & Strengths,
+            // *** FIX: closing quote added after 'Interests & Strengths' ***
+            _MenuItem(emoji: '🎯', label: 'Interests & Strengths',
               onTap: () => _editInterests(context, ref)),
-            // Interactive tour for anyone unsure how the app works
             _MenuItem(emoji: '❓', label: 'How to use EduPath',
               onTap: () => launchUrl(
                 Uri.parse('https://app.supademo.com/demo/cmr94i2lt1zwyqm3ag2rwmk59?utm_source=link'),
                 mode: LaunchMode.externalApplication)),
-            // School link — quiet by design. Students already linked see
-            // their school; everyone else sees a low-key "Join" row. Users
-            // who aren't part of a school can simply ignore it.
             Consumer(builder: (c, r, _) {
               final link = r.watch(mySchoolLinkProvider).valueOrNull;
               if (link != null) {
@@ -177,10 +171,9 @@ class ProfileScreen extends ConsumerWidget {
             highlight: true),
           _MenuItem(emoji: '⚙️', label: 'Settings',
             onTap: () => _showSettings(context, ref)),
+          _MenuItem(emoji: '📧', label: 'Contact Us',
+            onTap: () => _showContactUs(context, ref)),
 
-            _MenuItem(emoji: '📧', label: 'Contact Us',
-              onTap: () => _showContactUs(context, ref)),
-          // Admin panel — only for admin users
           userAsync.when(
             loading: () => const SizedBox(), error: (_, __) => const SizedBox(),
             data: (user) => user?.isAdmin == true
@@ -194,7 +187,6 @@ class ProfileScreen extends ConsumerWidget {
 
           const SizedBox(height: 8),
 
-          // Login/logout
           if (!isLoggedIn) ...[
             PrimaryBtn(label: 'Sign Up — It\'s Free!',
               onPressed: () => context.push(AppConstants.routeSignup)),
@@ -211,8 +203,7 @@ class ProfileScreen extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(16)),
                     title: const Text('Log Out?', style: TextStyle(
                       fontFamily: 'Nunito', fontWeight: FontWeight.w900)),
-                    content: const Text(
-                      'Are you sure you want to log out?',
+                    content: const Text('Are you sure you want to log out?',
                       style: TextStyle(fontFamily: 'Nunito')),
                     actions: [
                       TextButton(
@@ -227,14 +218,12 @@ class ProfileScreen extends ConsumerWidget {
                     ]));
                 if (confirmed != true) return;
                 await AuthService.signOut();
-                // Force all providers to reset so new user gets clean state
                 ref.invalidate(appUserProvider);
                 ref.invalidate(matchesProvider);
                 ref.invalidate(savedItemsProvider);
                 ref.invalidate(subscriptionProvider);
                 ref.invalidate(onboardingProvider);
                 ref.invalidate(allCareersProvider);
-                // Wait for auth state to propagate before navigating
                 await Future.delayed(const Duration(milliseconds: 300));
                 if (context.mounted) context.go(AppConstants.routeSplash);
               },
@@ -275,7 +264,6 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   Future<void> _editInterests(BuildContext context, WidgetRef ref) async {
-    // Check weekly limit for free users
     final isPrem = ref.read(isPremiumProvider).valueOrNull ?? false;
     if (!isPrem) {
       final user = ref.read(appUserProvider).valueOrNull;
@@ -303,21 +291,17 @@ class ProfileScreen extends ConsumerWidget {
         }
       }
     }
-    // Show a bottom sheet to edit interests and traits, then regenerate matches
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.9,
-        maxChildSize: 0.95,
-        minChildSize: 0.5,
+        initialChildSize: 0.9, maxChildSize: 0.95, minChildSize: 0.5,
         expand: false,
         builder: (_, ctrl) => _EditInterestsSheet(scrollController: ctrl),
       ),
     ).then((_) async {
-      // Regenerate matches when sheet closes
       if (!context.mounted) return;
       final uid = Supabase.instance.client.auth.currentUser?.id;
       if (uid != null) {
@@ -333,11 +317,9 @@ class ProfileScreen extends ConsumerWidget {
     });
   }
 
-
   void _showContactUs(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
+      context: context, isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => Padding(
@@ -358,8 +340,6 @@ class ProfileScreen extends ConsumerWidget {
             style: TextStyle(fontFamily: 'Nunito', fontSize: 14,
               color: AppColors.textMid)),
           const SizedBox(height: 16),
-          // Live in-app support is a Premium perk. Free users still get the
-          // email addresses below, so they're never fully stuck.
           Consumer(builder: (c, r, _) {
             final isPrem = r.watch(isPremiumProvider).valueOrNull ?? false;
             if (isPrem) {
@@ -385,8 +365,7 @@ class ProfileScreen extends ConsumerWidget {
                   Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Live Chat Support', style: TextStyle(
-                      fontFamily: 'Nunito', fontSize: 14,
-                      fontWeight: FontWeight.w900)),
+                      fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w900)),
                     Text('Priority in-app replies — a Premium perk. Or email us below.',
                       style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5,
                         color: AppColors.textMid)),
@@ -450,7 +429,8 @@ class ProfileScreen extends ConsumerWidget {
               onTap: () {}),
             const SizedBox(height: 10),
             const Center(child: Text('Version 1.0.0',
-              style: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: AppColors.textLight))),
+              style: TextStyle(fontFamily: 'Nunito', fontSize: 12,
+                color: AppColors.textLight))),
             const SizedBox(height: 10),
           ]),
         );
@@ -549,7 +529,7 @@ class _EditInterestsSheetState extends ConsumerState<_EditInterestsSheet> {
   Set<String> _selectedTraitIds = {};
   bool _loading = true;
   bool _saving = false;
-  int _tab = 0; // 0 = interests, 1 = traits
+  int _tab = 0;
 
   @override
   void initState() {
@@ -560,16 +540,12 @@ class _EditInterestsSheetState extends ConsumerState<_EditInterestsSheet> {
   Future<void> _loadCurrent() async {
     final uid = Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) { setState(() => _loading = false); return; }
-    
-    // Load existing interests
     final user = await DbService.getUserByUid(uid);
     if (user == null) { setState(() => _loading = false); return; }
-    
     final interests = await Supabase.instance.client
         .from('user_interest').select('interest_id').eq('user_id', user.id);
     final traits = await Supabase.instance.client
         .from('user_trait').select('trait_id').eq('user_id', user.id);
-    
     setState(() {
       _selectedInterestIds = Set<String>.from(
           (interests as List).map((e) => e['interest_id'] as String));
@@ -585,12 +561,10 @@ class _EditInterestsSheetState extends ConsumerState<_EditInterestsSheet> {
     if (uid == null) return;
     final user = await DbService.getUserByUid(uid);
     if (user == null) return;
-    
     await Future.wait([
       DbService.saveUserInterests(user.id, _selectedInterestIds.toList()),
       DbService.saveUserTraits(user.id, _selectedTraitIds.toList()),
     ]);
-    
     if (mounted) Navigator.pop(context);
   }
 
@@ -600,12 +574,10 @@ class _EditInterestsSheetState extends ConsumerState<_EditInterestsSheet> {
     final traitsAsync = ref.watch(traitsProvider);
 
     return Column(children: [
-      // Handle
       Container(margin: const EdgeInsets.only(top: 12, bottom: 8),
         width: 40, height: 4,
         decoration: BoxDecoration(color: AppColors.border,
           borderRadius: BorderRadius.circular(2))),
-      // Header
       Padding(padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           const Text('Edit Interests & Strengths', style: TextStyle(
@@ -631,7 +603,6 @@ class _EditInterestsSheetState extends ConsumerState<_EditInterestsSheet> {
                       color: AppColors.primary))),
           ]),
         ])),
-      // Tab selector
       Padding(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         child: Row(children: [
           Expanded(child: GestureDetector(
@@ -659,7 +630,6 @@ class _EditInterestsSheetState extends ConsumerState<_EditInterestsSheet> {
                   color: _tab == 1 ? Colors.white : AppColors.textMid))))),
         ])),
       const Divider(height: 1),
-      // Content
       Expanded(child: _loading
           ? const Center(child: CircularProgressIndicator())
           : _tab == 0
@@ -754,7 +724,6 @@ class _EditInterestsSheetState extends ConsumerState<_EditInterestsSheet> {
     );
   }
 }
-
 
 class _ContactRow extends StatelessWidget {
   final String emoji, label, value;
