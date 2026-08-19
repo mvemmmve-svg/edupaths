@@ -7,7 +7,6 @@ import '../constants/app_constants.dart';
 import '../router/app_router.dart' show NotFoundScreen;
 import '../../features/auth/screens/auth_screens.dart';
 import '../../features/onboarding/screens/onboarding_screens.dart';
-import '../../features/onboarding/onboarding_slider_screen.dart';
 import '../../features/onboarding/demo_onboarding_screen.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/explore/screens/explore_screen.dart';
@@ -108,7 +107,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: AppConstants.routeOnboardingStart,
         builder: (c, s) => const OnboardingStartScreen()),
       GoRoute(path: AppConstants.routeOnboardingInterests,
-        builder: (c, s) => const OnboardingSliderScreen()),
+        builder: (c, s) => const ThisOrThatScreen()),
       GoRoute(path: AppConstants.routeOnboardingEnjoy,
         builder: (c, s) => const EnjoyScreen()),
       GoRoute(path: AppConstants.routeOnboardingPrefs,
