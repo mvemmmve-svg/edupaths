@@ -1,4 +1,6 @@
 // lib/features/home/screens/home_screen.dart
+// Added: interests hint card above match hero
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,7 +11,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/shared_widgets.dart';
 import '../../../shared/models/models.dart';
 import '../../../core/utils/responsive.dart';
-
 
 void _showAllMatches(BuildContext context, WidgetRef ref) {
   final matches = ref.read(matchesProvider).valueOrNull ?? [];
@@ -51,14 +52,12 @@ void _showAllMatches(BuildContext context, WidgetRef ref) {
                   Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(m.careerName, style: const TextStyle(
-                      fontFamily: 'Nunito', fontSize: 14,
-                      fontWeight: FontWeight.w800)),
+                      fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w800)),
                     if (m.avgSalary != null) Text(m.avgSalary!,
                       style: const TextStyle(fontFamily: 'Nunito',
                         fontSize: 12, color: AppColors.textMid)),
                   ])),
-                  const Icon(Icons.chevron_right_rounded,
-                    color: AppColors.textLight),
+                  const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
                 ]),
               );
             },
@@ -75,9 +74,6 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final userAsync    = ref.watch(appUserProvider);
 
-    // Parents get a different app: the Home tab takes them to the parent
-    // dashboard, not the student view. This also fixes being unable to
-    // return to the dashboard after tapping Home.
     final role = userAsync.valueOrNull?.roleType;
     if (role == 'parent') {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -107,10 +103,6 @@ class HomeScreen extends ConsumerWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
             // ── Header ───────────────────────────────
-            // One row, everything vertically centred. The greeting flexes
-            // and ellipsises; the streak pill, bell and avatar are ALL
-            // exactly 40px tall so nothing sits off-baseline, and they
-            // never get pushed off-screen on small phones (iPhone SE etc).
             const SizedBox(height: 16),
             Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
               Expanded(child: userAsync.when(
@@ -133,7 +125,6 @@ class HomeScreen extends ConsumerWidget {
                   ]),
               )),
               const SizedBox(width: 12),
-              // 🔥 streak chip — consecutive days in the app
               Consumer(builder: (c, r, _) {
                 final n = r.watch(streakProvider).valueOrNull ?? 0;
                 if (n < 2) return const SizedBox();
@@ -146,11 +137,9 @@ class HomeScreen extends ConsumerWidget {
                     decoration: BoxDecoration(
                       color: AppColors.accentOrange.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.accentOrange.withOpacity(0.4))),
+                      border: Border.all(color: AppColors.accentOrange.withOpacity(0.4))),
                     child: Text('🔥 $n', style: const TextStyle(
-                      fontFamily: 'Nunito', fontSize: 13,
-                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w800,
                       color: AppColors.accentOrange))));
               }),
               GestureDetector(
@@ -162,21 +151,17 @@ class HomeScreen extends ConsumerWidget {
                       border: Border.all(color: AppColors.border)),
                     child: const Icon(Icons.notifications_outlined,
                       size: 20, color: AppColors.textMid)),
-                  // Red badge = unread support replies waiting
                   Positioned(right: -4, top: -4,
                     child: Consumer(builder: (c, r, _) {
                       final n = r.watch(unreadSupportProvider).valueOrNull ?? 0;
                       if (n == 0) return const SizedBox();
                       return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.error,
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: AppColors.error,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: Colors.white, width: 1.5)),
-                        child: Text('$n', style: const TextStyle(
-                          color: Colors.white, fontSize: 10,
-                          fontFamily: 'Nunito', fontWeight: FontWeight.w800)));
+                        child: Text('$n', style: const TextStyle(color: Colors.white,
+                          fontSize: 10, fontFamily: 'Nunito', fontWeight: FontWeight.w800)));
                     })),
                 ]),
               ),
@@ -227,31 +212,25 @@ class HomeScreen extends ConsumerWidget {
 
             const SizedBox(height: 14),
 
-            // ── Discover deck entry (interactivity) ──
-            // Deliberately the loudest thing on the page: hot gradient,
-            // fanned card-deck graphic and a gentle pulse so it reads as
-            // a GAME, not another list row.
+            // ── Discover deck ────────────────────────
             const _DiscoverPromoCard(),
 
             const SizedBox(height: 14),
 
-            // ── Career IQ quiz entry ──
+            // ── Career IQ quiz ───────────────────────
             GestureDetector(
               onTap: () => context.push('/career-quiz'),
               child: Container(
                 padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.bgCard,
+                decoration: BoxDecoration(color: AppColors.bgCard,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: AppColors.border)),
                 child: const Row(children: [
                   Text('🧠', style: TextStyle(fontSize: 22)),
                   SizedBox(width: 10),
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Career IQ Quiz', style: TextStyle(
-                      fontFamily: 'Nunito', fontSize: 14,
-                      fontWeight: FontWeight.w900)),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Career IQ Quiz', style: TextStyle(fontFamily: 'Nunito',
+                      fontSize: 14, fontWeight: FontWeight.w900)),
                     Text('Think you know what a nurse actually earns? Prove it.',
                       style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5,
                         color: AppColors.textMid)),
@@ -263,45 +242,62 @@ class HomeScreen extends ConsumerWidget {
 
             const SizedBox(height: 14),
 
-            // ── Career of the Day (rotates daily) ──
+            // ── Career of the Day ────────────────────
             Consumer(builder: (c, r, _) {
               final careers = r.watch(allCareersProvider).valueOrNull;
               if (careers == null || careers.isEmpty) return const SizedBox();
               final today = DateTime.now();
-              final idx = (today.year * 372 + today.month * 31 + today.day)
-                  % careers.length;
+              final idx = (today.year * 372 + today.month * 31 + today.day) % careers.length;
               final cotd = careers[idx];
               return GestureDetector(
                 onTap: () => context.push('/pathway/${cotd.id}'),
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 6),
                   padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.bgCard,
+                  decoration: BoxDecoration(color: AppColors.bgCard,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AppColors.border)),
                   child: Row(children: [
                     const Text('📅', style: TextStyle(fontSize: 20)),
                     const SizedBox(width: 10),
-                    Expanded(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Career of the day',
-                        style: TextStyle(fontFamily: 'Nunito', fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textMid)),
-                      Text(cotd.displayName, style: const TextStyle(
-                        fontFamily: 'Nunito', fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.textDark)),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('Career of the day', style: TextStyle(fontFamily: 'Nunito',
+                        fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMid)),
+                      Text(cotd.displayName, style: const TextStyle(fontFamily: 'Nunito',
+                        fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.textDark)),
                     ])),
-                    Text(cotd.salaryDisplay, style: const TextStyle(
-                      fontFamily: 'Nunito', fontSize: 12,
-                      fontWeight: FontWeight.w800, color: AppColors.success)),
+                    Text(cotd.salaryDisplay, style: const TextStyle(fontFamily: 'Nunito',
+                      fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.success)),
                   ]),
                 ));
             }),
 
             const SizedBox(height: 14),
+
+            // ── Interests hint card ──────────────────
+            GestureDetector(
+              onTap: () => context.go(AppConstants.routeProfile),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.bgCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.border)),
+                child: const Row(children: [
+                  Text('🎯', style: TextStyle(fontSize: 20)),
+                  SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Not happy with your matches?',
+                      style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
+                        fontWeight: FontWeight.w800, color: AppColors.textDark)),
+                    Text('Update your interests & strengths in Profile →',
+                      style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5,
+                        color: AppColors.textMid)),
+                  ])),
+                ]),
+              ),
+            ),
 
             // ── Top AI Match Hero ────────────────────
             matchesAsync.when(
@@ -309,7 +305,6 @@ class HomeScreen extends ConsumerWidget {
               error: (_, __) => const SizedBox(),
               data: (matches) {
                 if (matches.isEmpty) {
-                  // Show generating state if user is onboarded
                   final user = ref.watch(appUserProvider).valueOrNull;
                   if (user?.onboardingComplete == true) {
                     return Container(
@@ -323,28 +318,22 @@ class HomeScreen extends ConsumerWidget {
                             fontWeight: FontWeight.w800, color: Colors.white),
                           textAlign: TextAlign.center),
                         const SizedBox(height: 12),
-                        // Active recovery: re-run the matching engine, then
-                        // refresh. Covers cases where generation was
-                        // interrupted during onboarding.
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: AppColors.primary),
                           onPressed: () async {
-                            final uid = Supabase.instance.client
-                                .auth.currentUser?.id;
+                            final uid = Supabase.instance.client.auth.currentUser?.id;
                             if (uid != null) {
                               try {
                                 await Supabase.instance.client.rpc(
-                                  'generate_smart_matches',
-                                  params: {'p_user_uid': uid});
+                                  'generate_smart_matches', params: {'p_user_uid': uid});
                               } catch (_) {}
                             }
                             ref.invalidate(matchesProvider);
                           },
                           child: const Text('Show my matches',
-                            style: TextStyle(fontFamily: 'Nunito',
-                              fontWeight: FontWeight.w800))),
+                            style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800))),
                       ]));
                   }
                   return const SizedBox();
@@ -360,29 +349,26 @@ class HomeScreen extends ConsumerWidget {
                         Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(999)),
-                          child: const Text('✨ AI Top Pick',
-                            style: TextStyle(fontFamily: 'Nunito', fontSize: 11,
-                              fontWeight: FontWeight.w800, color: Colors.white))),
+                          child: const Text('✨ AI Top Pick', style: TextStyle(
+                            fontFamily: 'Nunito', fontSize: 11,
+                            fontWeight: FontWeight.w800, color: Colors.white))),
                         const Spacer(),
                         MatchRing(pct: top.matchScore, size: 46),
                       ]),
                       const SizedBox(height: 12),
-                      Text(top.careerName, style: const TextStyle(
-                        fontFamily: 'Nunito', fontSize: 22, fontWeight: FontWeight.w900,
-                        color: Colors.white)),
+                      Text(top.careerName, style: const TextStyle(fontFamily: 'Nunito',
+                        fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
                       const SizedBox(height: 4),
                       Text(top.avgSalary != null ? 'Avg: ${top.avgSalary}' : 'Explore this career',
                         style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
                           color: Colors.white.withOpacity(0.75))),
                       const SizedBox(height: 8),
-                      // Why we matched you — right on the card
                       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         const Text('✨ ', style: TextStyle(fontSize: 12)),
                         Flexible(child: Text(friendlyMatchReason(top.matchReason),
                           maxLines: 2, overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontFamily: 'Nunito',
-                            fontSize: 12, fontWeight: FontWeight.w700,
-                            color: Colors.white, height: 1.35))),
+                          style: const TextStyle(fontFamily: 'Nunito', fontSize: 12,
+                            fontWeight: FontWeight.w700, color: Colors.white, height: 1.35))),
                       ]),
                       const SizedBox(height: 14),
                       Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
@@ -390,9 +376,9 @@ class HomeScreen extends ConsumerWidget {
                           color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: Colors.white.withOpacity(0.35))),
-                        child: const Text('View Full Pathway →',
-                          style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
-                            fontWeight: FontWeight.w700, color: Colors.white))),
+                        child: const Text('View Full Pathway →', style: TextStyle(
+                          fontFamily: 'Nunito', fontSize: 13,
+                          fontWeight: FontWeight.w700, color: Colors.white))),
                     ]),
                   ),
                 );
@@ -423,25 +409,24 @@ class HomeScreen extends ConsumerWidget {
                   return Padding(padding: const EdgeInsets.only(bottom: 10),
                     child: EduCard(
                       onTap: () => context.push('/pathway/${m.careerId}'),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Row(children: [
                           Container(width: 48, height: 48,
                             decoration: BoxDecoration(color: AppColors.primaryPale,
                               borderRadius: BorderRadius.circular(14)),
-                            child: const Icon(Icons.work_rounded, color: AppColors.primary, size: 24)),
+                            child: const Icon(Icons.work_rounded,
+                              color: AppColors.primary, size: 24)),
                           const SizedBox(width: 14),
                           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                            Text(m.careerName, style: const TextStyle(
-                              fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w800)),
+                            Text(m.careerName, style: const TextStyle(fontFamily: 'Nunito',
+                              fontSize: 14, fontWeight: FontWeight.w800)),
                             if (m.avgSalary != null) Text('Avg: ${m.avgSalary}',
                               style: const TextStyle(fontFamily: 'Nunito',
                                 fontSize: 12, color: AppColors.textMid)),
                           ])),
                           MatchRing(pct: m.matchScore),
                         ]),
-                        // Why we matched you — tap for the full breakdown
                         MatchReasonLine(reason: m.matchReason, careerId: m.careerId),
                       ]),
                     ));
@@ -452,8 +437,6 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(height: 24),
 
             // ── Browse Categories ────────────────────
-            // Browsing is FREE — the hook comes first, the paywall sits on
-            // deeper features (compare, unlimited saves, full roadmap).
             const SectionHeader(title: 'Browse by Category'),
             const SizedBox(height: 12),
             SingleChildScrollView(
@@ -462,24 +445,19 @@ class HomeScreen extends ConsumerWidget {
                 _CatCard(emoji: '💻', label: 'Technology', color: AppColors.primaryPale,
                   onTap: () => context.push('/careers-by-category/Technology')),
                 const SizedBox(width: 10),
-                _CatCard(emoji: '🎨', label: 'Creative',
-                  color: const Color(0xFFFDF2F8),
+                _CatCard(emoji: '🎨', label: 'Creative', color: const Color(0xFFFDF2F8),
                   onTap: () => context.push('/careers-by-category/Creative & Media')),
                 const SizedBox(width: 10),
-                _CatCard(emoji: '💼', label: 'Business',
-                  color: const Color(0xFFFFFBEB),
+                _CatCard(emoji: '💼', label: 'Business', color: const Color(0xFFFFFBEB),
                   onTap: () => context.push('/careers-by-category/Business & Finance')),
                 const SizedBox(width: 10),
-                _CatCard(emoji: '💊', label: 'Health',
-                  color: const Color(0xFFECFDF5),
+                _CatCard(emoji: '💊', label: 'Health', color: const Color(0xFFECFDF5),
                   onTap: () => context.push('/careers-by-category/Health & Medicine')),
                 const SizedBox(width: 10),
-                _CatCard(emoji: '🔬', label: 'Science',
-                  color: const Color(0xFFEFF6FF),
+                _CatCard(emoji: '🔬', label: 'Science', color: const Color(0xFFEFF6FF),
                   onTap: () => context.push('/careers-by-category/Engineering')),
                 const SizedBox(width: 10),
-                _CatCard(emoji: '⚖️', label: 'Law',
-                  color: const Color(0xFFF5F3FF),
+                _CatCard(emoji: '⚖️', label: 'Law', color: const Color(0xFFF5F3FF),
                   onTap: () => context.push('/careers-by-category/Law & Social Work')),
               ]),
             ),
@@ -505,12 +483,11 @@ class HomeScreen extends ConsumerWidget {
                       child: const Icon(Icons.work_outline_rounded,
                         color: AppColors.primary, size: 22)),
                     const SizedBox(width: 12),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                      Text(c.displayName, style: const TextStyle(
-                        fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w700)),
-                      Text(c.salaryDisplay, style: const TextStyle(
-                        fontFamily: 'Nunito', fontSize: 12, color: AppColors.textMid)),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(c.displayName, style: const TextStyle(fontFamily: 'Nunito',
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+                      Text(c.salaryDisplay, style: const TextStyle(fontFamily: 'Nunito',
+                        fontSize: 12, color: AppColors.textMid)),
                     ])),
                     const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
                   ]),
@@ -552,11 +529,6 @@ class _CatCard extends StatelessWidget {
   );
 }
 
-// ══════════════════════════════════════════════
-// DISCOVER PROMO CARD — the loudest card on Home.
-// Hot pink→orange gradient, fanned mini card-deck graphic, and a
-// slow breathe animation so the eye can't skip past it.
-// ══════════════════════════════════════════════
 class _DiscoverPromoCard extends StatefulWidget {
   const _DiscoverPromoCard();
   @override
@@ -570,23 +542,19 @@ class _DiscoverPromoCardState extends State<_DiscoverPromoCard>
   @override
   void initState() {
     super.initState();
-    _pulse = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 1600))
+    _pulse = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1600))
       ..repeat(reverse: true);
   }
 
   @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
+  void dispose() { _pulse.dispose(); super.dispose(); }
 
   Widget _miniCard(String emoji, double angle, Color tint) => Transform.rotate(
     angle: angle,
     child: Container(
       width: 40, height: 54,
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: Colors.white,
         borderRadius: BorderRadius.circular(9),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.18),
           blurRadius: 6, offset: const Offset(0, 3))]),
@@ -594,16 +562,14 @@ class _DiscoverPromoCardState extends State<_DiscoverPromoCard>
         Text(emoji, style: const TextStyle(fontSize: 18)),
         const SizedBox(height: 4),
         Container(width: 22, height: 4, decoration: BoxDecoration(
-          color: tint.withOpacity(0.35),
-          borderRadius: BorderRadius.circular(2))),
+          color: tint.withOpacity(0.35), borderRadius: BorderRadius.circular(2))),
       ])));
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _pulse,
-      builder: (_, child) => Transform.scale(
-        scale: 1.0 + 0.015 * _pulse.value, child: child),
+      builder: (_, child) => Transform.scale(scale: 1.0 + 0.015 * _pulse.value, child: child),
       child: GestureDetector(
         onTap: () => context.push('/discover'),
         child: Container(
@@ -613,52 +579,35 @@ class _DiscoverPromoCardState extends State<_DiscoverPromoCard>
               begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [Color(0xFFFF5FA2), Color(0xFFFF8C42)]),
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [BoxShadow(
-              color: const Color(0xFFFF5FA2).withOpacity(0.45),
+            boxShadow: [BoxShadow(color: const Color(0xFFFF5FA2).withOpacity(0.45),
               blurRadius: 18, offset: const Offset(0, 8))]),
           child: Row(children: [
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.22),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.22),
                   borderRadius: BorderRadius.circular(999)),
-                child: const Text('🔥 SWIPE GAME', style: TextStyle(
-                  fontFamily: 'Nunito', fontSize: 9,
-                  fontWeight: FontWeight.w900, color: Colors.white,
-                  letterSpacing: 1))),
+                child: const Text('🔥 SWIPE GAME', style: TextStyle(fontFamily: 'Nunito',
+                  fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1))),
               const SizedBox(height: 8),
-              const Text('Discover Careers', style: TextStyle(
-                fontFamily: 'Nunito', fontSize: 19,
-                fontWeight: FontWeight.w900, color: Colors.white)),
+              const Text('Discover Careers', style: TextStyle(fontFamily: 'Nunito',
+                fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white)),
               const SizedBox(height: 2),
               const Text('Swipe right on your future.\nLike it or bin it 👉',
                 style: TextStyle(fontFamily: 'Nunito', fontSize: 12,
-                  fontWeight: FontWeight.w600, color: Colors.white,
-                  height: 1.35)),
+                  fontWeight: FontWeight.w600, color: Colors.white, height: 1.35)),
               const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 7),
-                decoration: BoxDecoration(
-                  color: Colors.white,
+              Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(color: Colors.white,
                   borderRadius: BorderRadius.circular(999)),
-                child: const Text('Play now →', style: TextStyle(
-                  fontFamily: 'Nunito', fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFFFF5FA2)))),
+                child: const Text('Play now →', style: TextStyle(fontFamily: 'Nunito',
+                  fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFFFF5FA2)))),
             ])),
             const SizedBox(width: 6),
-            // Fanned mini card deck
             SizedBox(width: 86, height: 78, child: Stack(
               alignment: Alignment.center,
               children: [
-                Positioned(left: 0,
-                  child: _miniCard('🩺', -0.22, const Color(0xFF0E9B76))),
-                Positioned(right: 0,
-                  child: _miniCard('🎨', 0.22, const Color(0xFFEC4899))),
+                Positioned(left: 0, child: _miniCard('🩺', -0.22, const Color(0xFF0E9B76))),
+                Positioned(right: 0, child: _miniCard('🎨', 0.22, const Color(0xFFEC4899))),
                 _miniCard('🚀', 0, const Color(0xFF5B4FE9)),
               ])),
           ]),
