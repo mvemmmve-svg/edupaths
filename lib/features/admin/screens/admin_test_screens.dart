@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Import your existing screens — adjust paths to match your project:
-import '../../onboarding/screens/onboarding_slider_screen.dart';
-
 /// Admin test wrappers — let admin run any user-facing screen
-/// without it affecting their real admin account.
+/// without affecting their real admin account.
 ///
 /// Upload to: lib/features/admin/screens/admin_test_screens.dart
 ///
@@ -16,10 +13,6 @@ import '../../onboarding/screens/onboarding_slider_screen.dart';
 
 // ── Test Onboarding ───────────────────────────────────────────────────────────
 
-/// Wraps the real OnboardingSliderScreen in a test mode:
-/// - Shows a banner "ADMIN TEST MODE — changes will NOT be saved"
-/// - Intercepts the finish action (does not write to DB)
-/// - Adds a floating exit button back to admin home
 class AdminTestOnboardingScreen extends StatelessWidget {
   const AdminTestOnboardingScreen({super.key});
 
@@ -27,39 +20,31 @@ class AdminTestOnboardingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Real onboarding screen, but we intercept finish via the banner
         const _TestOnboardingWrapper(),
-
-        // Admin banner at top
         Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
+          top: 0, left: 0, right: 0,
           child: SafeArea(
             bottom: false,
             child: Container(
               color: const Color(0xFFDC2626),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  const Icon(Icons.science_rounded,
-                      color: Colors.white, size: 16),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'ADMIN TEST MODE — changes will NOT be saved',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold),
-                    ),
+              child: Row(children: [
+                const Icon(Icons.science_rounded, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'ADMIN TEST MODE — changes will NOT be saved',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold),
                   ),
-                  GestureDetector(
-                    onTap: () => context.go('/admin-home'),
-                    child: const Icon(Icons.close, color: Colors.white, size: 18),
-                  ),
-                ],
-              ),
+                ),
+                GestureDetector(
+                  onTap: () => context.go('/admin-home'),
+                  child: const Icon(Icons.close, color: Colors.white, size: 18),
+                ),
+              ]),
             ),
           ),
         ),
@@ -68,7 +53,6 @@ class AdminTestOnboardingScreen extends StatelessWidget {
   }
 }
 
-/// Actual onboarding wrapper that overrides _finish to be a no-op in test mode
 class _TestOnboardingWrapper extends StatefulWidget {
   const _TestOnboardingWrapper();
 
@@ -86,7 +70,6 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
   late final PageController _pageController;
   late final AnimationController _progressController;
 
-  // Scenario questions (same as real onboarding)
   static const List<Map<String, dynamic>> _scenarios = [
     {
       'question': 'You\'re given £500 and one weekend. Which would you rather do?',
@@ -114,12 +97,11 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
       'optionB': '💻 A teenager who hacks into government systems to expose corruption',
     },
   ];
+
   final Map<int, double> _scenarioScores = {};
 
   int get _totalPages => _interests.length + _scenarios.length;
   bool get _isScenarioPage => _currentPage >= _interests.length;
-  int get _scenarioIndex => _currentPage - _interests.length;
-
   double get _progress =>
       _totalPages == 0 ? 0 : (_currentPage + 1) / _totalPages;
 
@@ -164,7 +146,6 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut);
     } else {
-      // TEST MODE: don't save, just show success dialog
       _showTestDoneDialog();
     }
   }
@@ -173,8 +154,7 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('✅ Test complete!'),
         content: const Text(
             'In real mode this would save to the DB and redirect to /home.\n\nNo data was saved — this was admin test mode.'),
@@ -191,15 +171,10 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
                 backgroundColor: const Color(0xFF6C63FF)),
             onPressed: () {
               Navigator.pop(context);
-              // Reset and replay
               setState(() {
                 _currentPage = 0;
-                for (final id in _scores.keys) {
-                  _scores[id] = 3.0;
-                }
-                for (int i = 0; i < _scenarios.length; i++) {
-                  _scenarioScores[i] = 3.0;
-                }
+                for (final id in _scores.keys) _scores[id] = 3.0;
+                for (int i = 0; i < _scenarios.length; i++) _scenarioScores[i] = 3.0;
               });
               _pageController.jumpToPage(0);
               _progressController.value = 0;
@@ -251,289 +226,241 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-          body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    // Add top padding so banner doesn't overlap
     return Scaffold(
       backgroundColor: const Color(0xFFF8F7FF),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.only(top: 40), // space for red banner
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                child: Row(
-                  children: [
-                    if (_currentPage > 0)
-                      IconButton(
-                        onPressed: () {
-                          setState(() => _currentPage--);
-                          _pageController.previousPage(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut);
-                        },
-                        icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-                      ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _isScenarioPage
-                                ? 'Quick scenarios'
-                                : 'What interests you?',
-                            style: const TextStyle(
-                                fontSize: 22, fontWeight: FontWeight.bold),
+          padding: const EdgeInsets.only(top: 40),
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Row(children: [
+                if (_currentPage > 0)
+                  IconButton(
+                    onPressed: () {
+                      setState(() => _currentPage--);
+                      _pageController.previousPage(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut);
+                    },
+                    icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+                  ),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(
+                      _isScenarioPage ? 'Quick scenarios' : 'What interests you?',
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                    Text('${_currentPage + 1} of $_totalPages',
+                        style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                  ]),
+                ),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: _progress,
+                  minHeight: 6,
+                  backgroundColor: Colors.black12,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    _isScenarioPage
+                        ? const Color(0xFF7C3AED)
+                        : _categoryColor(_interests[_currentPage.clamp(
+                                0, _interests.length - 1)]['category'] as String?),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _totalPages,
+                itemBuilder: (ctx, index) {
+                  if (index < _interests.length) {
+                    final interest = _interests[index];
+                    final id = interest['id'] as String;
+                    final name = interest['name'] as String;
+                    final category = interest['category'] as String?;
+                    final score = _scores[id] ?? 3.0;
+                    final color = _categoryColor(category);
+
+                    return Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(32),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(28),
+                            boxShadow: [BoxShadow(
+                                color: color.withOpacity(0.15),
+                                blurRadius: 24,
+                                offset: const Offset(0, 8))],
                           ),
-                          Text('${_currentPage + 1} of $_totalPages',
-                              style: const TextStyle(
-                                  fontSize: 13, color: Colors.black54)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                          child: Column(children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: color.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '${_categoryEmoji(category)} ${category ?? "General"}',
+                                style: TextStyle(
+                                    color: color,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Text(name,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.2)),
+                            const SizedBox(height: 36),
+                            SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                activeTrackColor: color,
+                                inactiveTrackColor: color.withOpacity(0.15),
+                                thumbColor: color,
+                                overlayColor: color.withOpacity(0.12),
+                                trackHeight: 8,
+                                thumbShape: const RoundSliderThumbShape(
+                                    enabledThumbRadius: 14),
+                              ),
+                              child: Slider(
+                                value: score,
+                                min: 1, max: 5, divisions: 4,
+                                onChanged: (v) => setState(() => _scores[id] = v),
+                              ),
+                            ),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 200),
+                              child: Text(
+                                _sliderLabel(score),
+                                key: ValueKey(score.round()),
+                                style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w600,
+                                    color: color),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ]),
+                    );
+                  } else {
+                    final si = index - _interests.length;
+                    final q = _scenarios[si];
+                    final axisScore = _scenarioScores[si] ?? 3.0;
+                    const color = Color(0xFF7C3AED);
 
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 20, vertical: 10),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: LinearProgressIndicator(
-                    value: _progress,
-                    minHeight: 6,
-                    backgroundColor: Colors.black12,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      _isScenarioPage
-                          ? const Color(0xFF7C3AED)
-                          : _categoryColor(
-                              _interests[_currentPage.clamp(
-                                  0, _interests.length - 1)]['category']
-                              as String?),
-                    ),
+                    return Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(28),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(28),
+                            boxShadow: [BoxShadow(
+                                color: color.withOpacity(0.15),
+                                blurRadius: 24,
+                                offset: const Offset(0, 8))],
+                          ),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: color.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text('🎭 Quick scenario',
+                                  style: TextStyle(
+                                      color: color,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13)),
+                            ),
+                            const SizedBox(height: 20),
+                            Text(q['question'] as String,
+                                style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.35)),
+                            const SizedBox(height: 20),
+                            _OptionBox(
+                                text: q['optionA'] as String,
+                                isActive: axisScore >= 3.5,
+                                color: color),
+                            const SizedBox(height: 8),
+                            SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                activeTrackColor: color,
+                                inactiveTrackColor: color.withOpacity(0.15),
+                                thumbColor: color,
+                                overlayColor: color.withOpacity(0.12),
+                                trackHeight: 8,
+                                thumbShape: const RoundSliderThumbShape(
+                                    enabledThumbRadius: 14),
+                              ),
+                              child: Slider(
+                                value: axisScore,
+                                min: 1, max: 5, divisions: 4,
+                                onChanged: (v) =>
+                                    setState(() => _scenarioScores[si] = v),
+                              ),
+                            ),
+                            _OptionBox(
+                                text: q['optionB'] as String,
+                                isActive: axisScore <= 2.5,
+                                color: color),
+                          ]),
+                        ),
+                      ]),
+                    );
+                  }
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isScenarioPage
+                        ? const Color(0xFF7C3AED)
+                        : _categoryColor(_interests[_currentPage.clamp(
+                                0, _interests.length - 1)]['category'] as String?),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                    elevation: 0,
+                  ),
+                  onPressed: _next,
+                  child: Text(
+                    _currentPage < _totalPages - 1 ? 'Next →' : 'Finish test 🧪',
+                    style: const TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
-
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _totalPages,
-                  itemBuilder: (ctx, index) {
-                    if (index < _interests.length) {
-                      final interest = _interests[index];
-                      final id = interest['id'] as String;
-                      final name = interest['name'] as String;
-                      final category = interest['category'] as String?;
-                      final score = _scores[id] ?? 3.0;
-                      final color = _categoryColor(category);
-
-                      return Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(32),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(28),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color: color.withOpacity(0.15),
-                                      blurRadius: 24,
-                                      offset: const Offset(0, 8))
-                                ],
-                              ),
-                              child: Column(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: color.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      '${_categoryEmoji(category)} ${category ?? "General"}',
-                                      style: TextStyle(
-                                          color: color,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 24),
-                                  Text(name,
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.bold,
-                                          height: 1.2)),
-                                  const SizedBox(height: 36),
-                                  SliderTheme(
-                                    data: SliderTheme.of(context).copyWith(
-                                      activeTrackColor: color,
-                                      inactiveTrackColor:
-                                          color.withOpacity(0.15),
-                                      thumbColor: color,
-                                      overlayColor: color.withOpacity(0.12),
-                                      trackHeight: 8,
-                                      thumbShape:
-                                          const RoundSliderThumbShape(
-                                              enabledThumbRadius: 14),
-                                    ),
-                                    child: Slider(
-                                      value: score,
-                                      min: 1,
-                                      max: 5,
-                                      divisions: 4,
-                                      onChanged: (v) =>
-                                          setState(() => _scores[id] = v),
-                                    ),
-                                  ),
-                                  AnimatedSwitcher(
-                                    duration:
-                                        const Duration(milliseconds: 200),
-                                    child: Text(
-                                      _sliderLabel(score),
-                                      key: ValueKey(score.round()),
-                                      style: TextStyle(
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.w600,
-                                          color: color),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    } else {
-                      // Scenario page
-                      final si = index - _interests.length;
-                      final q = _scenarios[si];
-                      final axisScore = _scenarioScores[si] ?? 3.0;
-                      const color = Color(0xFF7C3AED);
-
-                      return Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(28),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(28),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color: color.withOpacity(0.15),
-                                      blurRadius: 24,
-                                      offset: const Offset(0, 8))
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: color.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: const Text('🎭 Quick scenario',
-                                        style: TextStyle(
-                                            color: color,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 13)),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  Text(q['question'] as String,
-                                      style: const TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                          height: 1.35)),
-                                  const SizedBox(height: 20),
-                                  _OptionBox(
-                                      text: q['optionA'] as String,
-                                      isActive: axisScore >= 3.5,
-                                      color: color),
-                                  const SizedBox(height: 8),
-                                  SliderTheme(
-                                    data: SliderTheme.of(context).copyWith(
-                                      activeTrackColor: color,
-                                      inactiveTrackColor:
-                                          color.withOpacity(0.15),
-                                      thumbColor: color,
-                                      overlayColor: color.withOpacity(0.12),
-                                      trackHeight: 8,
-                                      thumbShape:
-                                          const RoundSliderThumbShape(
-                                              enabledThumbRadius: 14),
-                                    ),
-                                    child: Slider(
-                                      value: axisScore,
-                                      min: 1,
-                                      max: 5,
-                                      divisions: 4,
-                                      onChanged: (v) => setState(
-                                          () => _scenarioScores[si] = v),
-                                    ),
-                                  ),
-                                  _OptionBox(
-                                      text: q['optionB'] as String,
-                                      isActive: axisScore <= 2.5,
-                                      color: color),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                  },
-                ),
-              ),
-
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isScenarioPage
-                          ? const Color(0xFF7C3AED)
-                          : _categoryColor(_interests[_currentPage.clamp(
-                                  0, _interests.length - 1)]['category']
-                              as String?),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
-                      elevation: 0,
-                    ),
-                    onPressed: _next,
-                    child: Text(
-                      _currentPage < _totalPages - 1
-                          ? 'Next →'
-                          : 'Finish test 🧪',
-                      style: const TextStyle(
-                          fontSize: 17, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ]),
         ),
       ),
     );
@@ -544,8 +471,7 @@ class _OptionBox extends StatelessWidget {
   final String text;
   final bool isActive;
   final Color color;
-  const _OptionBox(
-      {required this.text, required this.isActive, required this.color});
+  const _OptionBox({required this.text, required this.isActive, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -565,16 +491,13 @@ class _OptionBox extends StatelessWidget {
           style: TextStyle(
               fontSize: 13,
               color: isActive ? color : Colors.black54,
-              fontWeight:
-                  isActive ? FontWeight.w600 : FontWeight.normal)),
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
     );
   }
 }
 
 // ── Test Home Screen ──────────────────────────────────────────────────────────
 
-/// Shows the student home screen with a red admin banner overlaid.
-/// Import your actual HomeScreen and wrap it here.
 class AdminTestHomeScreen extends StatelessWidget {
   const AdminTestHomeScreen({super.key});
 
@@ -593,39 +516,29 @@ class AdminTestHomeScreen extends StatelessWidget {
             ),
           ),
         ),
-
-        // Admin banner
         Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
+          top: 0, left: 0, right: 0,
           child: SafeArea(
             bottom: false,
             child: Container(
               color: const Color(0xFFDC2626),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  const Icon(Icons.visibility_rounded,
-                      color: Colors.white, size: 16),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'ADMIN VIEW — Student home preview',
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(children: [
+                const Icon(Icons.visibility_rounded,
+                    color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text('ADMIN VIEW — Student home preview',
                       style: TextStyle(
                           color: Colors.white,
                           fontSize: 12,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => context.go('/admin-home'),
-                    child: const Icon(Icons.close,
-                        color: Colors.white, size: 18),
-                  ),
-                ],
-              ),
+                          fontWeight: FontWeight.bold)),
+                ),
+                GestureDetector(
+                  onTap: () => context.go('/admin-home'),
+                  child: const Icon(Icons.close, color: Colors.white, size: 18),
+                ),
+              ]),
             ),
           ),
         ),

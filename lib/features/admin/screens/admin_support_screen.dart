@@ -1,21 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-String _formatDate(DateTime dt) {
-  final now = DateTime.now();
-  if (now.difference(dt).inDays == 0) {
-    return '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
-  } else if (now.difference(dt).inDays < 7) {
-    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-    return days[dt.weekday - 1];
-  }
-  return '${dt.day} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.month-1]}';
-}
 
 /// Admin support inbox — lists all user threads, tap to open a thread.
 ///
 /// Upload to: lib/features/admin/screens/admin_support_screen.dart
 /// Route:     /admin-support
+/// NO intl dependency — uses plain Dart date formatting.
 
 class AdminSupportScreen extends StatefulWidget {
   const AdminSupportScreen({super.key});
@@ -48,8 +39,25 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
     }
   }
 
+  String _fmt(DateTime dt) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun',
+                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    const weekdays = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    final now = DateTime.now();
+    final diff = now.difference(dt).inDays;
+    if (diff == 0) {
+      return '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
+    } else if (diff < 7) {
+      return weekdays[dt.weekday - 1];
+    }
+    return '${dt.day} ${months[dt.month - 1]}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final totalUnread = _threads.fold<int>(
+        0, (sum, t) => sum + (t['unread_count'] as int? ?? 0));
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F7FF),
       appBar: AppBar(
@@ -64,49 +72,35 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
             const Text('Support Inbox',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(width: 8),
-            if (_threads.any((t) => (t['unread_count'] as int? ?? 0) > 0))
+            if (totalUnread > 0)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: const Color(0xFFDC2626),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  _threads
-                      .fold<int>(
-                          0,
-                          (sum, t) =>
-                              sum + (t['unread_count'] as int? ?? 0))
-                      .toString(),
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold),
-                ),
+                child: Text(totalUnread.toString(),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold)),
               ),
           ],
         ),
         actions: [
-          IconButton(
-              icon: const Icon(Icons.refresh_rounded), onPressed: _load),
+          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load),
         ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _threads.isEmpty
               ? const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('📭', style: TextStyle(fontSize: 48)),
-                      SizedBox(height: 12),
-                      Text('No support messages yet',
-                          style: TextStyle(
-                              fontSize: 16, color: Colors.black54)),
-                    ],
-                  ),
-                )
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text('📭', style: TextStyle(fontSize: 48)),
+                  SizedBox(height: 12),
+                  Text('No support messages yet',
+                      style: TextStyle(fontSize: 16, color: Colors.black54)),
+                ]))
               : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView.separated(
@@ -117,8 +111,7 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
                       final t = _threads[i];
                       final unread = t['unread_count'] as int? ?? 0;
                       final lastAt = t['last_message_at'] != null
-                          ? DateTime.tryParse(
-                              t['last_message_at'].toString())
+                          ? DateTime.tryParse(t['last_message_at'].toString())
                           : null;
 
                       return GestureDetector(
@@ -128,10 +121,8 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
                             MaterialPageRoute(
                               builder: (_) => AdminSupportThreadScreen(
                                 userId: t['user_id'] as String,
-                                userName: t['user_name'] as String? ??
-                                    'Unknown',
-                                userEmail:
-                                    t['user_email'] as String? ?? '',
+                                userName: t['user_name'] as String? ?? 'Unknown',
+                                userEmail: t['user_email'] as String? ?? '',
                               ),
                             ),
                           ).then((_) => _load());
@@ -145,8 +136,7 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
                             borderRadius: BorderRadius.circular(14),
                             border: unread > 0
                                 ? Border.all(
-                                    color: const Color(0xFFDC2626)
-                                        .withOpacity(0.3))
+                                    color: const Color(0xFFDC2626).withOpacity(0.3))
                                 : null,
                             boxShadow: [
                               BoxShadow(
@@ -154,110 +144,85 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
                                   blurRadius: 6)
                             ],
                           ),
-                          child: Row(
-                            children: [
-                              // Avatar
-                              CircleAvatar(
-                                radius: 22,
-                                backgroundColor: const Color(0xFF6C63FF)
-                                    .withOpacity(0.1),
-                                child: Text(
-                                  (t['user_name'] as String? ?? '?')
-                                      .characters
-                                      .first
-                                      .toUpperCase(),
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF6C63FF)),
-                                ),
+                          child: Row(children: [
+                            CircleAvatar(
+                              radius: 22,
+                              backgroundColor:
+                                  const Color(0xFF6C63FF).withOpacity(0.1),
+                              child: Text(
+                                (t['user_name'] as String? ?? '?')
+                                    .characters
+                                    .first
+                                    .toUpperCase(),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF6C63FF)),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            t['user_name'] as String? ??
-                                                'Unknown',
-                                            style: TextStyle(
-                                                fontWeight: unread > 0
-                                                    ? FontWeight.bold
-                                                    : FontWeight.w500,
-                                                fontSize: 14),
-                                          ),
-                                        ),
-                                        if (lastAt != null)
-                                          Text(
-                                            _formatDate(lastAt),
-                                            style: const TextStyle(
-                                                fontSize: 11,
-                                                color: Colors.black38),
-                                          ),
-                                      ],
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(children: [
+                                    Expanded(
+                                      child: Text(
+                                        t['user_name'] as String? ?? 'Unknown',
+                                        style: TextStyle(
+                                            fontWeight: unread > 0
+                                                ? FontWeight.bold
+                                                : FontWeight.w500,
+                                            fontSize: 14),
+                                      ),
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      t['user_email'] as String? ?? '',
+                                    if (lastAt != null)
+                                      Text(_fmt(lastAt),
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.black38)),
+                                  ]),
+                                  const SizedBox(height: 2),
+                                  Text(t['user_email'] as String? ?? '',
                                       style: const TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.black45),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      t['last_message'] as String? ?? '',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                          fontSize: 13,
-                                          color: unread > 0
-                                              ? Colors.black87
-                                              : Colors.black45,
-                                          fontWeight: unread > 0
-                                              ? FontWeight.w500
-                                              : FontWeight.normal),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (unread > 0) ...[
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFDC2626),
-                                    shape: BoxShape.circle,
+                                          fontSize: 11, color: Colors.black45)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    t['last_message'] as String? ?? '',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        color: unread > 0
+                                            ? Colors.black87
+                                            : Colors.black45,
+                                        fontWeight: unread > 0
+                                            ? FontWeight.w500
+                                            : FontWeight.normal),
                                   ),
-                                  child: Text(
-                                    unread.toString(),
+                                ],
+                              ),
+                            ),
+                            if (unread > 0) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(
+                                    color: Color(0xFFDC2626),
+                                    shape: BoxShape.circle),
+                                child: Text(unread.toString(),
                                     style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 11,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              ],
+                                        fontWeight: FontWeight.bold)),
+                              ),
                             ],
-                          ),
+                          ]),
                         ),
                       );
                     },
                   ),
                 ),
     );
-  }
-
-  String _formatDate(DateTime dt) {
-    final now = DateTime.now();
-    if (now.difference(dt).inDays == 0) {
-      return DateFormat('HH:mm').format(dt);
-    } else if (now.difference(dt).inDays < 7) {
-      return DateFormat('EEE').format(dt);
-    }
-    return DateFormat('d MMM').format(dt);
   }
 }
 
@@ -280,8 +245,7 @@ class AdminSupportThreadScreen extends StatefulWidget {
       _AdminSupportThreadScreenState();
 }
 
-class _AdminSupportThreadScreenState
-    extends State<AdminSupportThreadScreen> {
+class _AdminSupportThreadScreenState extends State<AdminSupportThreadScreen> {
   final _supabase = Supabase.instance.client;
   final _replyController = TextEditingController();
   final _scrollController = ScrollController();
@@ -302,10 +266,16 @@ class _AdminSupportThreadScreenState
     super.dispose();
   }
 
+  String _fmtFull(DateTime dt) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun',
+                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')} ${dt.day} ${months[dt.month - 1]}';
+  }
+
   Future<void> _loadThread() async {
     try {
-      final resp = await _supabase
-          .rpc('admin_support_thread', params: {'p_user_id': widget.userId});
+      final resp = await _supabase.rpc('admin_support_thread',
+          params: {'p_user_id': widget.userId});
       setState(() {
         _messages = List<Map<String, dynamic>>.from(resp as List);
         _loading = false;
@@ -358,144 +328,122 @@ class _AdminSupportThreadScreenState
           icon: const Icon(Icons.arrow_back_ios_new, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.userName,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 16)),
-            Text(widget.userEmail,
-                style:
-                    const TextStyle(fontSize: 11, color: Colors.black45)),
-          ],
-        ),
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(widget.userName,
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 16)),
+          Text(widget.userEmail,
+              style: const TextStyle(fontSize: 11, color: Colors.black45)),
+        ]),
       ),
-      body: Column(
-        children: [
-          // Messages
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _messages.isEmpty
-                    ? const Center(child: Text('No messages yet'))
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _messages.length,
-                        itemBuilder: (ctx, i) {
-                          final m = _messages[i];
-                          final isAdmin = m['sender'] == 'admin';
-                          final at = DateTime.tryParse(
-                              m['created_at'].toString());
+      body: Column(children: [
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _messages.isEmpty
+                  ? const Center(child: Text('No messages yet'))
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _messages.length,
+                      itemBuilder: (ctx, i) {
+                        final m = _messages[i];
+                        final isAdmin = m['sender'] == 'admin';
+                        final at = DateTime.tryParse(
+                            m['created_at'].toString());
 
-                          return Align(
-                            alignment: isAdmin
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 10),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 10),
-                              constraints: BoxConstraints(
-                                  maxWidth:
-                                      MediaQuery.of(context).size.width *
-                                          0.75),
-                              decoration: BoxDecoration(
-                                color: isAdmin
-                                    ? const Color(0xFF6C63FF)
-                                    : Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color:
-                                          Colors.black.withOpacity(0.05),
-                                      blurRadius: 4)
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    m['body'] as String? ?? '',
+                        return Align(
+                          alignment: isAdmin
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            constraints: BoxConstraints(
+                                maxWidth:
+                                    MediaQuery.of(context).size.width * 0.75),
+                            decoration: BoxDecoration(
+                              color: isAdmin
+                                  ? const Color(0xFF6C63FF)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 4)
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(m['body'] as String? ?? '',
                                     style: TextStyle(
                                         color: isAdmin
                                             ? Colors.white
                                             : Colors.black87,
-                                        fontSize: 14),
-                                  ),
-                                  if (at != null) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      DateFormat('HH:mm d MMM').format(at),
+                                        fontSize: 14)),
+                                if (at != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(_fmtFull(at),
                                       style: TextStyle(
                                           fontSize: 10,
                                           color: isAdmin
                                               ? Colors.white54
-                                              : Colors.black38),
-                                    ),
-                                  ],
+                                              : Colors.black38)),
                                 ],
-                              ),
+                              ],
                             ),
-                          );
-                        },
-                      ),
-          ),
-
-          // Reply box
-          Container(
-            color: Colors.white,
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: 10,
-              bottom:
-                  MediaQuery.of(context).viewInsets.bottom + 12,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _replyController,
-                    maxLines: 3,
-                    minLines: 1,
-                    decoration: InputDecoration(
-                      hintText: 'Reply to ${widget.userName}…',
-                      filled: true,
-                      fillColor: const Color(0xFFF5F5F5),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF6C63FF),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 14, horizontal: 14),
-                  ),
-                  onPressed: _sending ? null : _sendReply,
-                  child: _sending
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2))
-                      : const Icon(Icons.send_rounded, size: 18),
-                ),
-              ],
-            ),
+        ),
+        Container(
+          color: Colors.white,
+          padding: EdgeInsets.only(
+            left: 16, right: 16, top: 10,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 12,
           ),
-        ],
-      ),
+          child: Row(children: [
+            Expanded(
+              child: TextField(
+                controller: _replyController,
+                maxLines: 3,
+                minLines: 1,
+                decoration: InputDecoration(
+                  hintText: 'Reply to ${widget.userName}…',
+                  filled: true,
+                  fillColor: const Color(0xFFF5F5F5),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF6C63FF),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(
+                    vertical: 14, horizontal: 14),
+              ),
+              onPressed: _sending ? null : _sendReply,
+              child: _sending
+                  ? const SizedBox(
+                      width: 18, height: 18,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
+                  : const Icon(Icons.send_rounded, size: 18),
+            ),
+          ]),
+        ),
+      ]),
     );
   }
 }
