@@ -407,7 +407,8 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
               error: (e, _) => ErrorView(message: e.toString()),
               data: (_) {
                 if (filteredQuals.isEmpty) {
-                  return const EmptyState(emoji: '📚', title: 'No qualifications found');
+                  return const EmptyState(emoji: '📚', title: 'No qualifications found',
+                      subtitle: 'Try adjusting your filters or search');
                 }
                 // Group by type
                 final grouped = <String, List<Map<String, dynamic>>>{};
