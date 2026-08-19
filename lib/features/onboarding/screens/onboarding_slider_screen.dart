@@ -233,6 +233,14 @@ class _OnboardingSliderScreenState extends State<OnboardingSliderScreen> {
       await _supabase.from('users')
           .update({'onboarding_complete': true}).eq('id', userId);
 
+      // Generate career matches immediately after onboarding
+      try {
+        await _supabase.rpc('generate_smart_matches',
+            params: {'p_user_uid': uid.toString()});
+      } catch (_) {
+        // Non-fatal — user can regenerate from home screen
+      }
+
       if (mounted) _showDoneDialog();
     } catch (e) {
       setState(() => _saving = false);
