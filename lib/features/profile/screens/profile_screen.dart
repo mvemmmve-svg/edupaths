@@ -141,7 +141,7 @@ class ProfileScreen extends ConsumerWidget {
                 ? _MenuItem(emoji: '🏫', label: 'School Advisor Portal',
                     onTap: () => context.push('/school-advisor'))
                 : const SizedBox()),
-            _MenuItem(emoji: '🎯', label: 'Interests & Preferences',
+            _MenuItem(emoji: '🎯', label: 'Interests & Strengths,
               onTap: () => _editInterests(context, ref)),
             // Interactive tour for anyone unsure how the app works
             _MenuItem(emoji: '❓', label: 'How to use EduPath',
