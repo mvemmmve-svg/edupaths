@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Import your existing screens — adjust paths to match your project:
-import '../../../onboarding/onboarding_slider_screen.dart';
+import '../../onboarding/screens/onboarding_slider_screen.dart';
 
 /// Admin test wrappers — let admin run any user-facing screen
 /// without it affecting their real admin account.
