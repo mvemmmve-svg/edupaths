@@ -1,1086 +1,828 @@
 // lib/features/profile/screens/admin_screen.dart
+// Full admin dashboard — NOT a normal user screen.
+// Tabs: Overview · Users · Quiz Editor · Support · Test Lab
+// Upload to: lib/features/profile/screens/admin_screen.dart
+
 import 'package:flutter/material.dart';
-import '../../../core/widgets/external_link.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/services/db_service.dart';
-import '../../../core/services/providers.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../shared/widgets/shared_widgets.dart';
-import 'admin_content_tabs.dart';
+import '../../../features/admin/screens/admin_view_as_screen.dart';
+import '../../../features/admin/screens/admin_support_screen.dart';
 
-final _sb = Supabase.instance.client;
-
-// ── Providers ─────────────────────────────────
-final adminUsersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  // Use view that safely joins users + subscriptions without FK requirement
-  final res = await _sb
-      .from('admin_users_view')
-      .select()
-      .order('created_at', ascending: false);
-  return (res as List).cast<Map<String, dynamic>>();
-});
-
-final adminSchoolsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final res = await _sb.from('schools').select().order('name', ascending: true);
-  return (res as List).cast<Map<String, dynamic>>();
-});
-
-final adminCoursesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final res = await _sb.from('courses')
-      .select('id, title, url, category, course_type, institutions(name)')
-      .order('title');
-  return (res as List).cast<Map<String, dynamic>>();
-});
-
-final _adminSearchProvider = StateProvider<String>((ref) => '');
-final _adminTabProvider = StateProvider<int>((ref) => 0);
-
-// ══════════════════════════════════════════════
-// ADMIN SCREEN
-// ══════════════════════════════════════════════
-class AdminScreen extends ConsumerStatefulWidget {
+class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
-  @override
-  ConsumerState<AdminScreen> createState() => _AdminState();
+  @override State<AdminScreen> createState() => _AdminScreenState();
 }
 
-class _AdminState extends ConsumerState<AdminScreen>
+class _AdminScreenState extends State<AdminScreen>
     with SingleTickerProviderStateMixin {
-  late TabController _tabs;
+  final _supabase = Supabase.instance.client;
+  late final TabController _tabs;
+  Map<String, dynamic> _stats = {};
+  bool _statsLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 8, vsync: this);
+    _tabs = TabController(length: 5, vsync: this);
+    _loadStats();
+  }
+
+  @override
+  void dispose() { _tabs.dispose(); super.dispose(); }
+
+  Future<void> _loadStats() async {
+    setState(() => _statsLoading = true);
+    try {
+      final r = await _supabase.rpc('admin_dashboard_stats');
+      setState(() { _stats = Map<String, dynamic>.from(r as Map); _statsLoading = false; });
+    } catch (_) { setState(() => _statsLoading = false); }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: const Color(0xFF0F0F1A),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E0A3C),
+        backgroundColor: const Color(0xFF1A1A2E),
+        foregroundColor: Colors.white,
         title: const Row(children: [
-          Icon(Icons.admin_panel_settings_rounded,
-            color: Colors.white, size: 20),
+          Text('🛡️', style: TextStyle(fontSize: 18)),
           SizedBox(width: 8),
-          Text('Admin Dashboard', style: TextStyle(
-            fontFamily: 'Nunito', fontSize: 16,
-            fontWeight: FontWeight.w900, color: Colors.white)),
+          Text('Admin Panel', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         ]),
-        leading: GestureDetector(
-          onTap: () => context.pop(), child: const BackBtn()),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
+              onPressed: _loadStats),
+          IconButton(icon: const Icon(Icons.logout, color: Colors.white70),
+              onPressed: () async {
+                await _supabase.auth.signOut();
+                if (context.mounted) context.go('/');
+              }),
+        ],
         bottom: TabBar(
           controller: _tabs,
           isScrollable: true,
-          indicatorColor: Colors.white,
           labelColor: Colors.white,
-          unselectedLabelColor: Colors.white54,
-          labelStyle: const TextStyle(fontFamily: 'Nunito',
-            fontSize: 11, fontWeight: FontWeight.w800),
+          unselectedLabelColor: Colors.white38,
+          indicatorColor: const Color(0xFF6C63FF),
           tabs: const [
-            Tab(text: '👥 Users'),
-            Tab(text: '💼 Careers'),
-            Tab(text: '📋 Quals'),
-            Tab(text: '🏫 Schools'),
-            Tab(text: '🎓 Courses'),
-            Tab(text: '🏛️ Places'),
-            Tab(text: '📢 Broadcast'),
-            Tab(text: '📊 Stats'),
+            Tab(text: 'Overview'),
+            Tab(text: 'Users'),
+            Tab(text: 'Quiz Editor'),
+            Tab(text: 'Support'),
+            Tab(text: 'Test Lab'),
           ],
         ),
       ),
       body: TabBarView(controller: _tabs, children: [
-        _UsersTab(),
-        const CareersAdminTab(),
-        const QualsAdminTab(),
-        _SchoolsTab(),
-        _CoursesTab(),
-        const InstitutionsAdminTab(),
-        const BroadcastAdminTab(),
-        _StatsTab(),
+        _OverviewTab(stats: _stats, loading: _statsLoading, onRefresh: _loadStats),
+        const _UsersTab(),
+        const _QuizEditorTab(),
+        const _SupportTab(),
+        const _TestLabTab(),
       ]),
     );
   }
 }
 
-// ══════════════════════════════════════════════
-// USERS TAB
-// ══════════════════════════════════════════════
-class _UsersTab extends ConsumerStatefulWidget {
-  @override
-  ConsumerState<_UsersTab> createState() => _UsersTabState();
-}
+// ── OVERVIEW TAB ─────────────────────────────────────────────────────────────
 
-class _UsersTabState extends ConsumerState<_UsersTab> {
-  String _search = '';
-  String _filter = 'All'; // All, Free, Premium, Advisor, Admin
-  bool _sortAz = true; // A–Z by name
+class _OverviewTab extends StatelessWidget {
+  final Map<String, dynamic> stats;
+  final bool loading;
+  final VoidCallback onRefresh;
+  const _OverviewTab({required this.stats, required this.loading, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
-    final usersAsync = ref.watch(adminUsersProvider);
-
-    return usersAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => ErrorView(message: e.toString()),
-      data: (users) {
-        final filtered = users.where((u) {
-          final matchSearch = _search.isEmpty ||
-              (u['email'] as String? ?? '').toLowerCase().contains(_search.toLowerCase()) ||
-              (u['full_name'] as String? ?? '').toLowerCase().contains(_search.toLowerCase());
-          final matchFilter = _filter == 'All' ||
-              (_filter == 'Admin' && u['is_admin'] == true) ||
-              (_filter == 'Advisor' && u['role_type'] == 'advisor') ||
-              (_filter == 'Premium' &&
-                  (u['subscription_plan'] == 'premium' ||
-                   u['subscription_plan'] == 'premium_plus')) ||
-              (_filter == 'Free' && (u['subscriptions'] as List?)?.isEmpty != false);
-          return matchSearch && matchFilter;
-        }).toList();
-
-        // Sort by display name (falls back to email), A–Z or Z–A
-        String key(Map<String, dynamic> u) =>
-            ((u['full_name'] as String?)?.trim().isNotEmpty == true
-                ? u['full_name'] as String
-                : (u['email'] as String? ?? '')).toLowerCase();
-        filtered.sort((a, b) =>
-            _sortAz ? key(a).compareTo(key(b)) : key(b).compareTo(key(a)));
-
-        return Column(children: [
-          // Search
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              onChanged: (v) => setState(() => _search = v),
-              decoration: const InputDecoration(
-                hintText: 'Search users...',
-                prefixIcon: Icon(Icons.search_rounded, size: 18),
-                contentPadding: EdgeInsets.symmetric(vertical: 10)))),
-          // Filter chips
-          SizedBox(height: 40,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: ['All','Free','Premium','Advisor','Admin'].map((f) =>
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: GestureDetector(
-                    onTap: () => setState(() => _filter = f),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: _filter == f
-                            ? const Color(0xFF1E0A3C) : AppColors.bgCard,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: _filter == f
-                              ? const Color(0xFF1E0A3C) : AppColors.border)),
-                      child: Text(f, style: TextStyle(
-                        fontFamily: 'Nunito', fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: _filter == f
-                            ? Colors.white : AppColors.textMid)))))).toList())),
-          // Count
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Row(children: [
-              Text('${filtered.length} users',
-                style: const TextStyle(fontFamily: 'Nunito', fontSize: 12,
-                  color: AppColors.textMid)),
-              const Spacer(),
-              GestureDetector(
-                onTap: () => setState(() => _sortAz = !_sortAz),
-                child: Row(children: [
-                  Icon(_sortAz ? Icons.arrow_downward_rounded
-                      : Icons.arrow_upward_rounded,
-                    size: 14, color: AppColors.primary),
-                  const SizedBox(width: 2),
-                  Text(_sortAz ? 'A–Z' : 'Z–A', style: const TextStyle(
-                    fontFamily: 'Nunito', fontSize: 12,
-                    fontWeight: FontWeight.w800, color: AppColors.primary)),
-                ])),
-            ])),
-          // User list
-          Expanded(child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            itemCount: filtered.length,
-            itemBuilder: (_, i) => _UserCard(
-              user: filtered[i],
-              onChanged: () => ref.invalidate(adminUsersProvider)))),
-        ]);
-      },
-    );
-  }
-}
-
-class _UserCard extends ConsumerStatefulWidget {
-  final Map<String, dynamic> user;
-  final VoidCallback onChanged;
-  const _UserCard({required this.user, required this.onChanged});
-  @override
-  ConsumerState<_UserCard> createState() => _UserCardState();
-}
-
-class _UserCardState extends ConsumerState<_UserCard> {
-  bool _expanded = false;
-  bool _saving = false;
-
-  String get _plan {
-    return widget.user['subscription_plan'] as String? ?? 'free';
-  }
-
-  Color get _planColor {
-    switch (_plan) {
-      case 'premium': return AppColors.accentGreen;
-      case 'premium_plus': return Colors.amber;
-      default: return AppColors.textLight;
-    }
-  }
-
-  Future<void> _setStatus(String status) async {
-    setState(() => _saving = true);
-    try {
-      await _sb.from('users').update({'account_status': status})
-          .eq('id', widget.user['id']);
-      widget.onChanged();
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Future<void> _updateRole(String newRole) async {
-    setState(() => _saving = true);
-    try {
-      await _sb.from('users').update({
-        'role_type': newRole,
-        'is_admin': newRole == 'admin',
-      }).eq('id', widget.user['id']);
-      widget.onChanged();
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Future<void> _updateTier(String tier) async {
-    setState(() => _saving = true);
-    try {
-      final uid = widget.user['supabase_uid'] as String;
-      await _sb.from('subscriptions').upsert({
-        'firebase_uid': uid,
-        'plan': tier,
-        'status': tier == 'free' ? 'inactive' : 'active',
-      }, onConflict: 'firebase_uid');
-      widget.onChanged();
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Future<void> _resetPassword(BuildContext context) async {
-    final ctrl = TextEditingController();
-    final confirmed = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Reset Password', style: TextStyle(
-          fontFamily: 'Nunito', fontWeight: FontWeight.w900)),
-        content: TextField(
-          controller: ctrl,
-          obscureText: true,
-          decoration: const InputDecoration(
-            hintText: 'New password (min 6 chars)')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text),
-            child: const Text('Reset')),
-        ]));
-    if (confirmed == null || confirmed.length < 6) return;
-    setState(() => _saving = true);
-    try {
-      await _sb.auth.admin.updateUserById(
-        widget.user['supabase_uid'] as String,
-        attributes: AdminUserAttributes(password: confirmed));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Password updated!'),
-        backgroundColor: AppColors.success));
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Error: $e'), backgroundColor: AppColors.error));
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Future<void> _viewAsUser() async {
-    // Copy user UID to clipboard for reference
-    await Clipboard.setData(ClipboardData(
-        text: widget.user['supabase_uid'] as String? ?? ''));
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('User UID copied to clipboard')));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final email = widget.user['email'] as String? ?? 'Unknown';
-    final name = widget.user['full_name'] as String? ?? email.split('@').first;
-    final roleType = widget.user['role_type'] as String? ?? 'student';
-    final isAdmin = widget.user['is_admin'] == true;
-    final onboarded = widget.user['onboarding_complete'] == true;
-    final schoolYear = widget.user['school_year'] as String? ?? '';
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: EduCard(
-        onTap: () => setState(() => _expanded = !_expanded),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Header row
-          Row(children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: isAdmin
-                  ? const Color(0xFF1E0A3C)
-                  : AppColors.primaryPale,
-              child: Text(name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase(),
-                style: TextStyle(
-                fontFamily: 'Nunito', fontWeight: FontWeight.w900,
-                fontSize: 14,
-                color: isAdmin ? Colors.white : AppColors.primary))),
-            const SizedBox(width: 10),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name, style: const TextStyle(fontFamily: 'Nunito',
-                fontSize: 13, fontWeight: FontWeight.w800),
-                overflow: TextOverflow.ellipsis),
-              Text(email, style: const TextStyle(fontFamily: 'Nunito',
-                fontSize: 11, color: AppColors.textMid),
-                overflow: TextOverflow.ellipsis),
-            ])),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              TagBadge(label: _plan.toUpperCase(),
-                bg: _planColor.withOpacity(0.15),
-                fg: _planColor),
-              if (isAdmin) const TagBadge(label: 'ADMIN',
-                bg: Color(0xFF1E0A3C), fg: Colors.white),
-              if (roleType == 'advisor') const TagBadge(label: 'ADVISOR',
-                bg: AppColors.primaryPale, fg: AppColors.primaryDark),
-            ]),
-          ]),
-
-          // Expanded controls
-          if (_expanded) ...[
-            const Divider(height: 16),
-            // Full details — visible on tap
-            _InfoRow('Name', name),
-            _InfoRow('Email', email),
-            _InfoRow('School Year', schoolYear.isEmpty ? 'Not set' : schoolYear),
-            _InfoRow('Role', roleType),
-            _InfoRow('Onboarding', onboarded ? '✅ Complete' : '⏳ Pending'),
-            _InfoRow('Account',
-              (widget.user['account_status'] as String? ?? 'active') == 'active'
-                  ? '✅ Active' : '⏸ ${widget.user['account_status']}'),
-            const SizedBox(height: 10),
-            // Activate / suspend — for approving student accounts created
-            // under school advisor profiles
-            if ((widget.user['account_status'] as String? ?? 'active') != 'active')
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: SizedBox(width: double.infinity, child: ElevatedButton(
-                  onPressed: _saving ? null : () => _setStatus('active'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                    foregroundColor: Colors.white,
-                    textStyle: const TextStyle(fontFamily: 'Nunito',
-                      fontSize: 12, fontWeight: FontWeight.w800)),
-                  child: const Text('✅ Activate Account'))))
-            else
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Align(alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed: _saving ? null : () => _setStatus('suspended'),
-                    child: const Text('⏸ Suspend account',
-                      style: TextStyle(fontFamily: 'Nunito', fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textMid))))),
-            // Actions
-            const Text('Change Tier', style: TextStyle(fontFamily: 'Nunito',
-              fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textMid)),
-            const SizedBox(height: 6),
-            Row(children: ['free','premium','premium_plus'].map((t) =>
-              Expanded(child: Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: ElevatedButton(
-                  onPressed: _saving ? null : () => _updateTier(t),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _plan == t
-                        ? AppColors.primary : AppColors.bgGrey,
-                    foregroundColor: _plan == t
-                        ? Colors.white : AppColors.textDark,
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    textStyle: const TextStyle(
-                      fontFamily: 'Nunito', fontSize: 10,
-                      fontWeight: FontWeight.w700)),
-                  child: Text(t == 'premium_plus' ? 'Premium+' : _cap(t)))))).toList()),
-            const SizedBox(height: 6),
-            const Text('Change Role', style: TextStyle(fontFamily: 'Nunito',
-              fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textMid)),
-            const SizedBox(height: 6),
-            Row(children: ['student','parent','advisor','admin'].map((r) =>
-              Expanded(child: Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: ElevatedButton(
-                  onPressed: _saving ? null : () => _updateRole(r),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: roleType == r
-                        ? const Color(0xFF1E0A3C) : AppColors.bgGrey,
-                    foregroundColor: roleType == r
-                        ? Colors.white : AppColors.textDark,
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    textStyle: const TextStyle(
-                      fontFamily: 'Nunito', fontSize: 9,
-                      fontWeight: FontWeight.w700)),
-                  child: Text(_cap(r)))))).toList()),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(child: OutlineBtn(
-                label: '🔑 Reset Password',
-                onPressed: () => _resetPassword(context))),
-              const SizedBox(width: 8),
-              Expanded(child: OutlineBtn(
-                label: '📋 Copy UID',
-                onPressed: _viewAsUser)),
-            ]),
-          ],
-
-          // Expand indicator
-          Center(child: Icon(
-            _expanded
-                ? Icons.keyboard_arrow_up_rounded
-                : Icons.keyboard_arrow_down_rounded,
-            color: AppColors.textLight, size: 20)),
-        ])));
-  }
-
-  String _cap(String s) => s[0].toUpperCase() + s.substring(1);
-}
-
-// ══════════════════════════════════════════════
-// SCHOOLS TAB
-// ══════════════════════════════════════════════
-class _SchoolsTab extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final schoolsAsync = ref.watch(adminSchoolsProvider);
-    return schoolsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => ErrorView(message: e.toString()),
-      data: (schools) => schools.isEmpty
-          ? const EmptyState(emoji: '🏫', title: 'No schools yet',
-              subtitle: 'Schools appear here once registered')
-          : ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: schools.length,
-              itemBuilder: (_, i) {
-                final s = schools[i];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: EduCard(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      const Text('🏫', style: TextStyle(fontSize: 22)),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text(s['name'] ?? 'Unknown School',
-                        style: const TextStyle(fontFamily: 'Nunito',
-                          fontSize: 14, fontWeight: FontWeight.w800))),
-                      TagBadge(
-                        label: s['membership_status'] == 'active'
-                            ? '✅ Active' : '⏳ Trial',
-                        bg: s['membership_status'] == 'active'
-                            ? const Color(0xFFECFDF5) : AppColors.bgGrey,
-                        fg: s['membership_status'] == 'active'
-                            ? const Color(0xFF065F46) : AppColors.textMid),
-                    ]),
-                    const SizedBox(height: 6),
-                    _InfoRow('Plan', s['membership_tier'] == 'cohort_300'
-                        ? '£300/yr - 300 students' : '£120/yr - 120 students'),
-                    _InfoRow('Contact', s['contact_email'] ?? 'N/A'),
-                    _InfoRow('Postcode', s['postcode'] ?? 'N/A'),
-                    const SizedBox(height: 8),
-                    Row(children: [
-                      Expanded(child: ElevatedButton(
-                        onPressed: () => _activateSchool(context, ref, s['id']),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.accentGreen,
-                          padding: const EdgeInsets.symmetric(vertical: 8)),
-                        child: const Text('✅ Set Active',
-                          style: TextStyle(fontFamily: 'Nunito',
-                            fontSize: 12, fontWeight: FontWeight.w800)))),
-                      const SizedBox(width: 8),
-                      Expanded(child: ElevatedButton(
-                        onPressed: () => _setTrial(context, ref, s['id']),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.bgGrey,
-                          foregroundColor: AppColors.textDark,
-                          padding: const EdgeInsets.symmetric(vertical: 8)),
-                        child: const Text('⏳ Set Trial',
-                          style: TextStyle(fontFamily: 'Nunito',
-                            fontSize: 12, fontWeight: FontWeight.w800)))),
-                    ]),
-                    const SizedBox(height: 6),
-                    SizedBox(width: double.infinity, child: OutlinedButton.icon(
-                      onPressed: () => _viewStudents(context, s['id'], s['name'] ?? 'School'),
-                      icon: const Icon(Icons.groups_rounded, size: 16),
-                      label: const Text('View & manage students',
-                        style: TextStyle(fontFamily: 'Nunito', fontSize: 12,
-                          fontWeight: FontWeight.w800)))),
-                  ])));
-              }),
-    );
-  }
-
-  void _viewStudents(BuildContext context, String schoolId, String schoolName) {
-    showModalBottomSheet(context: context, isScrollControlled: true,
-      backgroundColor: AppColors.bgPage,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _AdminStudentsSheet(schoolId: schoolId, schoolName: schoolName));
-  }
-
-  Future<void> _activateSchool(BuildContext ctx, WidgetRef ref, String id) async {
-    await _sb.from('schools').update({
-      'membership_status': 'active',
-      'membership_expires_at': DateTime.now()
-          .add(const Duration(days: 365)).toIso8601String(),
-    }).eq('id', id);
-    ref.invalidate(adminSchoolsProvider);
-    if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
-      content: Text('School activated!'), backgroundColor: AppColors.success));
-  }
-
-  Future<void> _setTrial(BuildContext ctx, WidgetRef ref, String id) async {
-    await _sb.from('schools').update({
-      'membership_status': 'trial'}).eq('id', id);
-    ref.invalidate(adminSchoolsProvider);
-  }
-}
-
-// ══════════════════════════════════════════════
-// COURSES TAB
-// ══════════════════════════════════════════════
-class _CoursesTab extends ConsumerStatefulWidget {
-  @override
-  ConsumerState<_CoursesTab> createState() => _CoursesTabState();
-}
-
-class _CoursesTabState extends ConsumerState<_CoursesTab> {
-  String _search = '';
-  @override
-  Widget build(BuildContext context) {
-    final coursesAsync = ref.watch(adminCoursesProvider);
-    return coursesAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => ErrorView(message: e.toString()),
-      data: (courses) {
-        final filtered = _search.isEmpty ? courses
-            : courses.where((c) =>
-                (c['title'] as String).toLowerCase().contains(_search.toLowerCase()))
-                .toList();
-        return Column(children: [
-          Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: Row(children: [
-              Expanded(child: PrimaryBtn(label: '➕ Import Course',
-                onPressed: () => showImportCourseSheet(context,
-                  () => ref.invalidate(adminCoursesProvider)))),
-              const SizedBox(width: 8),
-              Expanded(child: OutlineBtn(label: '🏛️ Add Institution',
-                onPressed: () => showImportInstitutionSheet(context))),
-            ])),
-          Padding(padding: const EdgeInsets.all(12),
-            child: TextField(
-              onChanged: (v) => setState(() => _search = v),
-              decoration: const InputDecoration(
-                hintText: 'Search courses...',
-                prefixIcon: Icon(Icons.search_rounded, size: 18),
-                contentPadding: EdgeInsets.symmetric(vertical: 10)))),
-          Expanded(child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            itemCount: filtered.length,
-            itemBuilder: (_, i) => _CourseAdminCard(
-              course: filtered[i],
-              onChanged: () => ref.invalidate(adminCoursesProvider)))),
-        ]);
-      },
-    );
-  }
-}
-
-class _CourseAdminCard extends ConsumerStatefulWidget {
-  final Map<String, dynamic> course;
-  final VoidCallback onChanged;
-  const _CourseAdminCard({required this.course, required this.onChanged});
-  @override
-  ConsumerState<_CourseAdminCard> createState() => _CourseAdminCardState();
-}
-
-class _CourseAdminCardState extends ConsumerState<_CourseAdminCard> {
-  bool _editing = false;
-  late TextEditingController _urlCtrl;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _urlCtrl = TextEditingController(text: widget.course['url'] as String? ?? '');
-  }
-
-  Future<void> _saveUrl() async {
-    setState(() => _saving = true);
-    try {
-      await _sb.from('courses').update({'url': _urlCtrl.text.trim()})
-          .eq('id', widget.course['id']);
-      setState(() => _editing = false);
-      widget.onChanged();
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final inst = widget.course['institutions'] as Map?;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: EduCard(child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Text(widget.course['title'] as String,
-            style: const TextStyle(fontFamily: 'Nunito', fontSize: 13,
-              fontWeight: FontWeight.w800))),
-          TagBadge(
-            label: widget.course['course_type'] == 'Apprenticeship'
-                ? '🔨' : '🎓',
-            bg: AppColors.primaryPale, fg: AppColors.primaryDark),
-        ]),
-        if (inst != null) Text(inst['name'] as String,
-          style: const TextStyle(fontFamily: 'Nunito', fontSize: 11,
-            color: AppColors.textMid)),
-        const SizedBox(height: 6),
-        if (!_editing) ...[
-          Text(widget.course['url'] as String? ?? 'No URL',
-            style: const TextStyle(fontFamily: 'Nunito', fontSize: 11,
-              color: AppColors.primary),
-            maxLines: 1, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 6),
-          GestureDetector(
-            onTap: () => setState(() => _editing = true),
-            child: const Text('✏️ Edit URL', style: TextStyle(
-              fontFamily: 'Nunito', fontSize: 12,
-              color: AppColors.primary, fontWeight: FontWeight.w700))),
-          const SizedBox(width: 16),
-          GestureDetector(
-            onTap: () {
-              final url = widget.course['url'] as String? ?? '';
-              if (url.isNotEmpty) launchExternal(url); // F4 — normalized, new tab
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.accentGreen,
-                borderRadius: BorderRadius.circular(8)),
-              child: const Text('Go →', style: TextStyle(
-                fontFamily: 'Nunito', fontSize: 12,
-                fontWeight: FontWeight.w800, color: Colors.white)))),
-        ] else ...[
-          TextField(
-            controller: _urlCtrl,
-            style: const TextStyle(fontFamily: 'Nunito', fontSize: 12),
-            decoration: const InputDecoration(
-              hintText: 'https://...',
-              contentPadding: EdgeInsets.all(8))),
-          const SizedBox(height: 6),
-          Row(children: [
-            Expanded(child: ElevatedButton(
-              onPressed: _saving ? null : _saveUrl,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 6)),
-              child: _saving
-                  ? const SizedBox(width: 14, height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
-                  : const Text('Save'))),
-            const SizedBox(width: 8),
-            TextButton(
-              onPressed: () => setState(() => _editing = false),
-              child: const Text('Cancel')),
-          ]),
+    return RefreshIndicator(
+      onRefresh: () async => onRefresh(),
+      child: ListView(padding: const EdgeInsets.all(16), children: [
+        if (loading)
+          const Center(child: Padding(padding: EdgeInsets.all(32),
+              child: CircularProgressIndicator(color: Color(0xFF6C63FF))))
+        else ...[
+          _SectionHead('📊 Live Stats'),
+          GridView.count(crossAxisCount: 2, shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.5,
+            children: [
+              _StatTile('👤', 'Total Users', '${stats['total_users'] ?? 0}', const Color(0xFF4F46E5)),
+              _StatTile('✅', 'Onboarded', '${stats['onboarded'] ?? 0}', const Color(0xFF059669)),
+              _StatTile('💎', 'Premium', '${stats['premium'] ?? 0}', const Color(0xFFD97706)),
+              _StatTile('📬', 'Unread Support', '${stats['unread_support'] ?? 0}',
+                  (stats['unread_support'] ?? 0) > 0 ? const Color(0xFFDC2626) : const Color(0xFF6B7280),
+                  highlight: (stats['unread_support'] ?? 0) > 0),
+              _StatTile('🎯', 'Careers', '${stats['total_careers'] ?? 0}', const Color(0xFF7C3AED)),
+              _StatTile('🧠', 'Quiz Careers', '${stats['total_quizzes'] ?? 0}', const Color(0xFF0891B2)),
+              _StatTile('📅', 'Signups Today', '${stats['signups_today'] ?? 0}', const Color(0xFFDB2777)),
+              _StatTile('📈', 'This Week', '${stats['signups_week'] ?? 0}', const Color(0xFF059669)),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _SectionHead('⚡ Quick Actions'),
+          const SizedBox(height: 8),
+          _QuickAction('👁️ View as User', 'See the app through any user\'s eyes',
+              () => context.go('/admin-view-as')),
+          _QuickAction('📬 Support Inbox', 'Reply to user messages',
+              () => context.go('/admin-support')),
+          _QuickAction('🧪 Test Onboarding', 'Run onboarding flow without saving',
+              () => context.go('/admin-test-onboarding')),
+          _QuickAction('🏠 Test Home Screen', 'Preview what students see',
+              () => context.go('/admin-test-home')),
+          const SizedBox(height: 24),
+          _SectionHead('🔧 System'),
+          const SizedBox(height: 8),
+          _QuickAction('📋 Full Legacy Dashboard', 'Old 8-tab admin (careers CRUD, schools, etc.)',
+              () => _showLegacyNote(context)),
         ],
-      ])));
-  }
-}
-
-// ══════════════════════════════════════════════
-// STATS TAB
-// ══════════════════════════════════════════════
-class _StatsTab extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final usersAsync = ref.watch(adminUsersProvider);
-    final schoolsAsync = ref.watch(adminSchoolsProvider);
-
-    return usersAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => ErrorView(message: e.toString()),
-      data: (users) {
-        final total = users.length;
-        final onboarded = users.where((u) =>
-            u['onboarding_complete'] == true).length;
-        final premium = users.where((u) =>
-            u['subscription_plan'] != null &&
-            u['subscription_plan'] != 'free').length;
-        final advisors = users.where((u) =>
-            u['role_type'] == 'advisor').length;
-        final parents = users.where((u) =>
-            u['role_type'] == 'parent').length;
-        final schools = schoolsAsync.valueOrNull?.length ?? 0;
-
-        return ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Color(0xFF1E0A3C),
-                borderRadius: BorderRadius.all(Radius.circular(16))),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Platform Overview', style: TextStyle(
-                  fontFamily: 'Nunito', fontSize: 20,
-                  fontWeight: FontWeight.w900, color: Colors.white)),
-                Text('Real-time statistics', style: TextStyle(
-                  fontFamily: 'Nunito', fontSize: 13, color: Colors.white54)),
-              ])),
-            const SizedBox(height: 16),
-            _StatCard('👥 Total Users', '$total', AppColors.primary),
-            const SizedBox(height: 8),
-            _StatCard('✅ Onboarded', '$onboarded / $total',
-              AppColors.accentGreen),
-            const SizedBox(height: 8),
-            _StatCard('⭐ Premium Users', '$premium', Colors.amber),
-            const SizedBox(height: 8),
-            _StatCard('👨‍👩‍👧 Parents', '$parents', AppColors.accentBlue),
-            const SizedBox(height: 8),
-            _StatCard('🏫 School Advisors', '$advisors', AppColors.accentOrange),
-            const SizedBox(height: 8),
-            _StatCard('🏫 Schools', '$schools', const Color(0xFF1E0A3C)),
-            const SizedBox(height: 20),
-            const Text('Conversion Rate', style: TextStyle(
-              fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            _ProgressBar('Onboarding', onboarded, total, AppColors.accentGreen),
-            const SizedBox(height: 6),
-            _ProgressBar('Premium', premium, total, Colors.amber),
-            const SizedBox(height: 80),
-          ],
-        );
-      },
+      ]),
     );
   }
-}
 
-class _StatCard extends StatelessWidget {
-  final String label, value;
-  final Color color;
-  const _StatCard(this.label, this.value, this.color);
-  @override
-  Widget build(BuildContext context) => EduCard(
-    child: Row(children: [
-      Container(width: 4, height: 44,
-        decoration: BoxDecoration(
-          color: color, borderRadius: BorderRadius.circular(2))),
-      const SizedBox(width: 14),
-      Expanded(child: Text(label, style: const TextStyle(
-        fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w700))),
-      Text(value, style: TextStyle(fontFamily: 'Nunito',
-        fontSize: 22, fontWeight: FontWeight.w900, color: color)),
-    ]));
-}
-
-class _ProgressBar extends StatelessWidget {
-  final String label;
-  final int value, total;
-  final Color color;
-  const _ProgressBar(this.label, this.value, this.total, this.color);
-  @override
-  Widget build(BuildContext context) {
-    final pct = total > 0 ? value / total : 0.0;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Text(label, style: const TextStyle(fontFamily: 'Nunito',
-          fontSize: 12, color: AppColors.textMid)),
-        const Spacer(),
-        Text('${(pct * 100).toStringAsFixed(1)}%',
-          style: TextStyle(fontFamily: 'Nunito', fontSize: 12,
-            fontWeight: FontWeight.w700, color: color)),
-      ]),
-      const SizedBox(height: 4),
-      ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: LinearProgressIndicator(
-          value: pct, minHeight: 8,
-          backgroundColor: AppColors.bgGrey,
-          valueColor: AlwaysStoppedAnimation(color))),
-    ]);
+  void _showLegacyNote(BuildContext ctx) {
+    showDialog(context: ctx, builder: (_) => AlertDialog(
+      title: const Text('Legacy Dashboard'),
+      content: const Text('The old admin dashboard with Careers CRUD, Schools, Institutions, Broadcast etc. is still accessible via the /admin route in your router. Add a GoRoute for /admin-legacy pointing to your existing AdminDashboardScreen.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+    ));
   }
 }
 
-// ══════════════════════════════════════════════
-// HELPERS
-// ══════════════════════════════════════════════
-class _InfoRow extends StatelessWidget {
-  final String label, value;
-  const _InfoRow(this.label, this.value);
+class _StatTile extends StatelessWidget {
+  final String emoji, label, value;
+  final Color color;
+  final bool highlight;
+  const _StatTile(this.emoji, this.label, this.value, this.color, {this.highlight = false});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: highlight ? color.withOpacity(0.15) : const Color(0xFF1A1A2E),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: highlight ? color.withOpacity(0.5) : Colors.white10)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(emoji, style: const TextStyle(fontSize: 20)),
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.white54)),
+      ]),
+    ]),
+  );
+}
+
+class _QuickAction extends StatelessWidget {
+  final String title, subtitle;
+  final VoidCallback onTap;
+  const _QuickAction(this.title, this.subtitle, this.onTap);
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white10)),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold,
+              color: Colors.white, fontSize: 14)),
+          Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.white54)),
+        ])),
+        const Icon(Icons.chevron_right_rounded, color: Colors.white24),
+      ]),
+    ),
+  );
+}
+
+class _SectionHead extends StatelessWidget {
+  final String text;
+  const _SectionHead(this.text);
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 2),
-    child: Row(children: [
-      Text('$label: ', style: const TextStyle(fontFamily: 'Nunito',
-        fontSize: 11, color: AppColors.textMid)),
-      Text(value, style: const TextStyle(fontFamily: 'Nunito',
-        fontSize: 11, fontWeight: FontWeight.w700)),
-    ]));
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold,
+        color: Colors.white70, fontSize: 13, letterSpacing: 0.5)));
 }
 
+// ── USERS TAB ────────────────────────────────────────────────────────────────
 
-// ══════════════════════════════════════════════════════════════
-// IMPORT FORMS (item 8) — every field has a hint explaining exactly
-// what to enter, so anyone on the team can add catalogue data safely.
-// ══════════════════════════════════════════════════════════════
-
-Widget _hint(String text) => Padding(
-  padding: const EdgeInsets.only(bottom: 4, top: 12),
-  child: Text(text, style: const TextStyle(fontFamily: 'Nunito',
-    fontSize: 11.5, color: AppColors.textMid, height: 1.3)));
-
-void showImportInstitutionSheet(BuildContext context) {
-  final name = TextEditingController();
-  final city = TextEditingController();
-  showModalBottomSheet(context: context, isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-    builder: (ctx) => Padding(
-      padding: EdgeInsets.only(left: 20, right: 20, top: 20,
-        bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
-      child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Add Institution 🏛️', style: TextStyle(fontFamily: 'Nunito',
-          fontSize: 18, fontWeight: FontWeight.w900)),
-        _hint('Official name of the university, college or training provider — e.g. "University of Manchester". Check spelling: this appears on course cards.'),
-        TextField(controller: name, decoration: const InputDecoration(hintText: 'Institution name *')),
-        _hint('Town or city where the main campus is — e.g. "Manchester".'),
-        TextField(controller: city, decoration: const InputDecoration(hintText: 'City')),
-        const SizedBox(height: 16),
-        StatefulBuilder(builder: (ctx2, setSt) {
-          var saving = false;
-          return PrimaryBtn(label: 'Save Institution', isLoading: saving,
-            onPressed: () async {
-              if (name.text.trim().isEmpty) return;
-              setSt(() => saving = true);
-              try {
-                await Supabase.instance.client.from('institutions')
-                  .insert({'name': name.text.trim(),
-                    if (city.text.trim().isNotEmpty) 'city': city.text.trim()});
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('✅ Institution added')));
-                }
-              } catch (e) {
-                setSt(() => saving = false);
-                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                  content: Text('Could not save: $e')));
-              }
-            });
-        }),
-        const SizedBox(height: 8),
-      ]))));
+class _UsersTab extends StatefulWidget {
+  const _UsersTab();
+  @override State<_UsersTab> createState() => _UsersTabState();
 }
 
-void showImportCourseSheet(BuildContext context, VoidCallback onSaved) {
-  final title = TextEditingController();
-  final url = TextEditingController();
-  final quals = TextEditingController();
-  final salary = TextEditingController();
-  final duration = TextEditingController();
-  String? instId;
-  showModalBottomSheet(context: context, isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-    builder: (ctx) => Padding(
-      padding: EdgeInsets.only(left: 20, right: 20, top: 20,
-        bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
-      child: StatefulBuilder(builder: (ctx2, setSt) {
-        return SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Expanded(child: Text('Import Course 🎓', style: TextStyle(
-              fontFamily: 'Nunito', fontSize: 18, fontWeight: FontWeight.w900))),
-            IconButton(
-              icon: const Icon(Icons.close_rounded, color: AppColors.textMid),
-              tooltip: 'Cancel',
-              onPressed: () => Navigator.pop(ctx)),
-          ]),
-          _hint('Full course title including the qualification level — e.g. "BSc Computer Science" or "Level 6 Digital Marketing Apprenticeship".'),
-          TextField(controller: title, decoration: const InputDecoration(hintText: 'Course title *')),
-          _hint('Which institution runs it? If it is missing, close this and use "Add Institution" first.'),
-          FutureBuilder(
-            future: Supabase.instance.client.from('institutions')
-              .select('id, name').order('name'),
-            builder: (c, snap) {
-              final items = (snap.data as List? ?? [])
-                .cast<Map<String, dynamic>>();
-              return DropdownButtonFormField<String>(
-                value: instId,
-                isExpanded: true,
-                hint: const Text('Select institution *'),
-                items: [for (final i in items)
-                  DropdownMenuItem(value: i['id'].toString(),
-                    child: Text(i['name'].toString(), overflow: TextOverflow.ellipsis))],
-                onChanged: (v) => setSt(() => instId = v));
-            }),
-          _hint('The OFFICIAL course page link, starting with https:// — always copy it from the institution\'s own website, never from a listings site. Year-stamped links (e.g. /2025/) break every year; prefer links without a year if offered.'),
-          TextField(controller: url, decoration: const InputDecoration(hintText: 'https://... *')),
-          _hint('Entry requirements in plain words — e.g. "AAB at A-Level including Maths" or "5 GCSEs grade 4+ including English and Maths".'),
-          TextField(controller: quals, decoration: const InputDecoration(hintText: 'Qualifications needed')),
-          _hint('Typical starting salary AFTER completing, numbers only in pounds — e.g. 28000. Leave blank if unknown.'),
-          TextField(controller: salary, keyboardType: TextInputType.number,
-            decoration: const InputDecoration(hintText: 'Starting salary (£)')),
-          _hint('How long the course runs — e.g. "3 years" or "18 months".'),
-          TextField(controller: duration, decoration: const InputDecoration(hintText: 'Duration')),
-          const SizedBox(height: 16),
-          PrimaryBtn(label: 'Save Course', onPressed: () async {
-            if (title.text.trim().isEmpty || url.text.trim().isEmpty || instId == null) {
-              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
-                content: Text('Title, institution and URL are required.')));
-              return;
-            }
-            var u = url.text.trim();
-            if (!u.startsWith('http')) u = 'https://$u';
-            try {
-              await Supabase.instance.client.from('courses').insert({
-                'title': title.text.trim(),
-                'institution_id': instId,
-                'url': u,
-                if (quals.text.trim().isNotEmpty) 'entry_requirements': quals.text.trim(),
-                if (salary.text.trim().isNotEmpty) 'starting_salary': int.tryParse(salary.text.trim()),
-                if (duration.text.trim().isNotEmpty) 'duration': duration.text.trim(),
-              });
-              if (ctx.mounted) {
-                Navigator.pop(ctx);
-                onSaved();
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('✅ Course imported')));
-              }
-            } catch (e) {
-              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                content: Text('Could not save: $e')));
-            }
-          }),
-          Center(child: TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(
-              fontFamily: 'Nunito', fontSize: 13,
-              fontWeight: FontWeight.w700, color: AppColors.textMid)))),
-          const SizedBox(height: 8),
-        ]));
-      })));
-}
+class _UsersTabState extends State<_UsersTab> {
+  final _supabase = Supabase.instance.client;
+  final _search = TextEditingController();
+  List<Map<String, dynamic>> _users = [];
+  bool _loading = true;
 
-// ── Admin: view & remove students in any school ──
-class _AdminStudentsSheet extends StatefulWidget {
-  final String schoolId, schoolName;
-  const _AdminStudentsSheet({required this.schoolId, required this.schoolName});
   @override
-  State<_AdminStudentsSheet> createState() => _AdminStudentsSheetState();
+  void initState() { super.initState(); _load(); }
+  @override
+  void dispose() { _search.dispose(); super.dispose(); }
+
+  Future<void> _load([String? q]) async {
+    setState(() => _loading = true);
+    try {
+      final r = await _supabase.rpc('admin_list_users', params: {
+        'p_limit': 100, 'p_offset': 0,
+        'p_search': q?.isEmpty == true ? null : q});
+      setState(() { _users = List<Map<String, dynamic>>.from(r as List); _loading = false; });
+    } catch (_) { setState(() => _loading = false); }
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+    Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+      child: TextField(
+        controller: _search,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          hintText: 'Search name or email…',
+          hintStyle: const TextStyle(color: Colors.white38),
+          prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 20),
+          filled: true, fillColor: const Color(0xFF1A1A2E),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12)),
+        onChanged: _load)),
+    Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(children: [
+        Text('${_users.length} users',
+            style: const TextStyle(color: Colors.white38, fontSize: 12)),
+      ])),
+    Expanded(child: _loading
+        ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
+        : ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: _users.length,
+            itemBuilder: (ctx, i) {
+              final u = _users[i];
+              return GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => AdminUserProfileView(
+                        userId: u['id'] as String,
+                        userName: u['name'] as String? ?? 'Unknown'))),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A2E),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white10)),
+                  child: Row(children: [
+                    CircleAvatar(radius: 18,
+                      backgroundColor: const Color(0xFF6C63FF).withOpacity(0.2),
+                      child: Text((u['name'] as String? ?? '?').characters.first.toUpperCase(),
+                          style: const TextStyle(color: Color(0xFF6C63FF), fontWeight: FontWeight.bold))),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(u['name'] as String? ?? 'Unknown',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                      Text(u['email'] as String? ?? '',
+                          style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                    ])),
+                    Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      if (u['subscription_tier'] == 'premium')
+                        const Text('💎', style: TextStyle(fontSize: 14)),
+                      if (u['is_admin'] == true)
+                        const Text('🛡️', style: TextStyle(fontSize: 14)),
+                      Text('${u['match_count']} matches',
+                          style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                    ]),
+                  ]),
+                ),
+              );
+            })),
+  ]);
 }
 
-class _AdminStudentsSheetState extends State<_AdminStudentsSheet> {
-  List<Map<String, dynamic>>? _students;
+// ── QUIZ EDITOR TAB ──────────────────────────────────────────────────────────
+
+class _QuizEditorTab extends StatefulWidget {
+  const _QuizEditorTab();
+  @override State<_QuizEditorTab> createState() => _QuizEditorTabState();
+}
+
+class _QuizEditorTabState extends State<_QuizEditorTab> {
+  final _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> _quizzes = [];
+  List<Map<String, dynamic>> _careers = [];
+  bool _loading = true;
+
   @override
   void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
+    setState(() => _loading = true);
     try {
-      final res = await _sb.rpc('admin_school_students',
-          params: {'p_school_id': widget.schoolId});
-      if (mounted) setState(() =>
-        _students = ((res as List?) ?? []).cast<Map<String, dynamic>>());
-    } catch (_) { if (mounted) setState(() => _students = []); }
+      final qr = await _supabase.from('career_quizzes')
+          .select().order('career_name').order('sort_order');
+      final cr = await _supabase.from('careers').select('id, name, category').order('name');
+      setState(() {
+        _quizzes = List<Map<String, dynamic>>.from(qr as List);
+        _careers = List<Map<String, dynamic>>.from(cr as List);
+        _loading = false;
+      });
+    } catch (_) { setState(() => _loading = false); }
   }
 
-  Future<void> _remove(String id, String name) async {
-    final sure = await showDialog<bool>(context: context, builder: (ctx) =>
-      AlertDialog(
-        title: const Text('Remove student?', style: TextStyle(
-          fontFamily: 'Nunito', fontWeight: FontWeight.w900)),
-        content: Text('Remove $name from their cohort? Their own account '
-          'is not affected.', style: const TextStyle(fontFamily: 'Nunito', fontSize: 13)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Remove', style: TextStyle(color: AppColors.error))),
-        ]));
-    if (sure != true) return;
-    await _sb.rpc('admin_remove_student', params: {'p_roster_id': id});
+  // Group by career
+  Map<String, List<Map<String, dynamic>>> get _grouped {
+    final m = <String, List<Map<String, dynamic>>>{};
+    for (final q in _quizzes) {
+      m.putIfAbsent(q['career_name'] as String, () => []).add(q);
+    }
+    return m;
+  }
+
+  Future<void> _toggleActive(String id, bool current) async {
+    await _supabase.from('career_quizzes').update({'is_active': !current}).eq('id', id);
     _load();
+  }
+
+  Future<void> _deleteQuestion(String id) async {
+    await _supabase.from('career_quizzes').delete().eq('id', id);
+    _load();
+  }
+
+  void _openAddQuestion() {
+    showModalBottomSheet(context: context, isScrollControlled: true,
+        backgroundColor: const Color(0xFF1A1A2E),
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (_) => _AddQuestionSheet(careers: _careers, onSaved: _load));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)));
+    final grouped = _grouped;
+    final careerNames = grouped.keys.toList()..sort();
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: const Color(0xFF6C63FF),
+        onPressed: _openAddQuestion,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text('Add Question', style: TextStyle(color: Colors.white)),
+      ),
+      body: ListView(padding: const EdgeInsets.fromLTRB(12, 12, 12, 80), children: [
+        ...careerNames.map((career) {
+          final qs = grouped[career]!;
+          return ExpansionTile(
+            collapsedBackgroundColor: const Color(0xFF1A1A2E),
+            backgroundColor: const Color(0xFF12122A),
+            collapsedShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Colors.white10)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Colors.white10)),
+            tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            title: Text(career, style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+            subtitle: Text('${qs.length} question${qs.length != 1 ? 's' : ''}',
+                style: const TextStyle(color: Colors.white38, fontSize: 11)),
+            childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+            children: qs.map((q) => Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                  color: const Color(0xFF0F0F1A),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white10)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(q['question'] as String? ?? '',
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))),
+                  Switch(
+                    value: q['is_active'] as bool? ?? true,
+                    activeColor: const Color(0xFF059669),
+                    onChanged: (_) => _toggleActive(q['id'] as String, q['is_active'] as bool? ?? true)),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                    onPressed: () => showDialog(context: context,
+                        builder: (_) => AlertDialog(
+                          backgroundColor: const Color(0xFF1A1A2E),
+                          title: const Text('Delete question?', style: TextStyle(color: Colors.white)),
+                          content: const Text('This cannot be undone.',
+                              style: TextStyle(color: Colors.white54)),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(context),
+                                child: const Text('Cancel')),
+                            TextButton(onPressed: () {
+                              Navigator.pop(context);
+                              _deleteQuestion(q['id'] as String);
+                            }, child: const Text('Delete', style: TextStyle(color: Colors.red))),
+                          ],
+                        ))),
+                ]),
+                const Divider(color: Colors.white10),
+                _AnswerRow('A', q['option_a'], q['correct_answer'] == 'a'),
+                _AnswerRow('B', q['option_b'], q['correct_answer'] == 'b'),
+                _AnswerRow('C', q['option_c'], q['correct_answer'] == 'c'),
+              ]),
+            )).toList(),
+          );
+        }),
+      ]),
+    );
+  }
+}
+
+class _AnswerRow extends StatelessWidget {
+  final String label, text;
+  final bool correct;
+  const _AnswerRow(this.label, this.text, this.correct);
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Row(children: [
+      Container(width: 20, height: 20,
+        decoration: BoxDecoration(
+            color: correct ? const Color(0xFF059669) : Colors.white10,
+            shape: BoxShape.circle),
+        child: Center(child: Text(label, style: const TextStyle(
+            color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)))),
+      const SizedBox(width: 8),
+      Expanded(child: Text(text as String? ?? '',
+          style: TextStyle(color: correct ? const Color(0xFF6EE7B7) : Colors.white54, fontSize: 11))),
+    ]),
+  );
+}
+
+class _AddQuestionSheet extends StatefulWidget {
+  final List<Map<String, dynamic>> careers;
+  final VoidCallback onSaved;
+  const _AddQuestionSheet({required this.careers, required this.onSaved});
+  @override State<_AddQuestionSheet> createState() => _AddQuestionSheetState();
+}
+
+class _AddQuestionSheetState extends State<_AddQuestionSheet> {
+  final _supabase = Supabase.instance.client;
+  final _qCtrl = TextEditingController();
+  final _aCtrl = TextEditingController();
+  final _bCtrl = TextEditingController();
+  final _cCtrl = TextEditingController();
+  final _factCtrl = TextEditingController();
+  String _correct = 'a';
+  String? _selectedCareerId;
+  String? _selectedCareerName;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _qCtrl.dispose(); _aCtrl.dispose(); _bCtrl.dispose();
+    _cCtrl.dispose(); _factCtrl.dispose(); super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_selectedCareerId == null || _qCtrl.text.isEmpty ||
+        _aCtrl.text.isEmpty || _bCtrl.text.isEmpty || _cCtrl.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Fill in all fields')));
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      // Get sort order
+      final existing = await _supabase.from('career_quizzes')
+          .select('sort_order').eq('career_id', _selectedCareerId!)
+          .order('sort_order', ascending: false).limit(1);
+      final nextSort = ((List<Map<String,dynamic>>.from(existing as List)
+          .firstOrNull?['sort_order'] as int?) ?? 0) + 1;
+
+      await _supabase.from('career_quizzes').insert({
+        'career_id': _selectedCareerId,
+        'career_name': _selectedCareerName,
+        'question': _qCtrl.text.trim(),
+        'option_a': _aCtrl.text.trim(),
+        'option_b': _bCtrl.text.trim(),
+        'option_c': _cCtrl.text.trim(),
+        'correct_answer': _correct,
+        'explanation': _factCtrl.text.trim(),
+        'sort_order': nextSort,
+        'is_active': true,
+      });
+      if (mounted) { Navigator.pop(context); widget.onSaved(); }
+    } catch (e) {
+      setState(() => _saving = false);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      expand: false, initialChildSize: 0.8, maxChildSize: 0.95,
-      builder: (_, scroll) => Column(children: [
-        Padding(padding: const EdgeInsets.fromLTRB(20, 20, 12, 8),
+      expand: false, initialChildSize: 0.92, maxChildSize: 0.98,
+      builder: (_, ctrl) => SingleChildScrollView(
+        controller: ctrl,
+        padding: EdgeInsets.only(
+            left: 20, right: 20, top: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Add Quiz Question', style: TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+          const SizedBox(height: 16),
+
+          const Text('Career', style: TextStyle(color: Colors.white54, fontSize: 12)),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            dropdownColor: const Color(0xFF1A1A2E),
+            style: const TextStyle(color: Colors.white),
+            decoration: _inputDec('Select a career'),
+            value: _selectedCareerId,
+            items: widget.careers.map((c) => DropdownMenuItem(
+              value: c['id'] as String,
+              child: Text(c['name'] as String,
+                  style: const TextStyle(color: Colors.white, fontSize: 13)))).toList(),
+            onChanged: (v) {
+              setState(() {
+                _selectedCareerId = v;
+                _selectedCareerName = widget.careers
+                    .firstWhere((c) => c['id'] == v)['name'] as String;
+              });
+            },
+          ),
+          const SizedBox(height: 14),
+
+          _Field('Question', _qCtrl, maxLines: 3),
+          const SizedBox(height: 14),
+          _Field('Option A', _aCtrl),
+          const SizedBox(height: 10),
+          _Field('Option B', _bCtrl),
+          const SizedBox(height: 10),
+          _Field('Option C', _cCtrl),
+          const SizedBox(height: 14),
+
+          const Text('Correct answer', style: TextStyle(color: Colors.white54, fontSize: 12)),
+          const SizedBox(height: 6),
+          Row(children: ['a', 'b', 'c'].map((opt) => Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: GestureDetector(
+              onTap: () => setState(() => _correct = opt),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                    color: _correct == opt ? const Color(0xFF059669) : const Color(0xFF0F0F1A),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _correct == opt
+                        ? const Color(0xFF059669) : Colors.white24)),
+                child: Text(opt.toUpperCase(), style: TextStyle(
+                    color: _correct == opt ? Colors.white : Colors.white38,
+                    fontWeight: FontWeight.bold)),
+              ),
+            ),
+          )).toList()),
+          const SizedBox(height: 14),
+
+          _Field('Fun fact / Myth busted (shown after answering)', _factCtrl, maxLines: 3),
+          const SizedBox(height: 20),
+
+          SizedBox(width: double.infinity, child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6C63FF),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(width: 20, height: 20,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : const Text('Save Question', style: TextStyle(color: Colors.white,
+                    fontWeight: FontWeight.bold, fontSize: 16)),
+          )),
+        ]),
+      ),
+    );
+  }
+
+  InputDecoration _inputDec(String hint) => InputDecoration(
+    hintText: hint, hintStyle: const TextStyle(color: Colors.white38),
+    filled: true, fillColor: const Color(0xFF0F0F1A),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.white10)),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.white10)),
+    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Color(0xFF6C63FF))));
+
+  Widget _Field(String label, TextEditingController ctrl, {int maxLines = 1}) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        const SizedBox(height: 6),
+        TextField(controller: ctrl, maxLines: maxLines,
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: _inputDec(label)),
+      ]);
+}
+
+// ── SUPPORT TAB ───────────────────────────────────────────────────────────────
+
+class _SupportTab extends StatefulWidget {
+  const _SupportTab();
+  @override State<_SupportTab> createState() => _SupportTabState();
+}
+
+class _SupportTabState extends State<_SupportTab> {
+  final _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> _threads = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final r = await _supabase.rpc('admin_support_inbox');
+      setState(() { _threads = List<Map<String, dynamic>>.from(r as List); _loading = false; });
+    } catch (_) { setState(() => _loading = false); }
+  }
+
+  String _fmt(DateTime dt) {
+    const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const wd = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    final diff = DateTime.now().difference(dt).inDays;
+    if (diff == 0) return '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
+    if (diff < 7) return wd[dt.weekday - 1];
+    return '${dt.day} ${mo[dt.month - 1]}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final unreadTotal = _threads.fold<int>(0, (s, t) => s + (t['unread_count'] as int? ?? 0));
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: PreferredSize(preferredSize: const Size.fromHeight(40),
+        child: Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: Row(children: [
-            Expanded(child: Text('${widget.schoolName} — Students',
-              style: const TextStyle(fontFamily: 'Nunito', fontSize: 16,
-                fontWeight: FontWeight.w900))),
-            IconButton(icon: const Icon(Icons.close_rounded),
-              onPressed: () => Navigator.pop(context)),
-          ])),
-        Expanded(child: _students == null
-          ? const Center(child: CircularProgressIndicator())
-          : _students!.isEmpty
-            ? const EmptyState(emoji: '👥', title: 'No students',
-                subtitle: 'This school has no students yet')
-            : ListView.builder(
-                controller: scroll,
-                padding: const EdgeInsets.all(16),
-                itemCount: _students!.length,
-                itemBuilder: (_, i) {
-                  final s = _students![i];
-                  return Padding(padding: const EdgeInsets.only(bottom: 8),
-                    child: EduCard(child: Row(children: [
-                      Expanded(child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(s['name'] ?? '—', style: const TextStyle(
-                          fontFamily: 'Nunito', fontSize: 13,
-                          fontWeight: FontWeight.w800)),
-                        Text('${s['year'] ?? ''} · ${s['cohort'] ?? ''} · ${s['status'] ?? ''}',
-                          style: const TextStyle(fontFamily: 'Nunito',
-                            fontSize: 11, color: AppColors.textMid)),
-                      ])),
-                      IconButton(
-                        icon: const Icon(Icons.person_remove_rounded,
-                          size: 18, color: AppColors.error),
-                        onPressed: () => _remove(s['id'], s['name'] ?? 'this student')),
-                    ])));
-                })),
-      ]));
+            const Text('Inbox', style: TextStyle(color: Colors.white,
+                fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(width: 8),
+            if (unreadTotal > 0) Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: const Color(0xFFDC2626),
+                  borderRadius: BorderRadius.circular(12)),
+              child: Text('$unreadTotal', style: const TextStyle(
+                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))),
+            const Spacer(),
+            IconButton(icon: const Icon(Icons.refresh_rounded, color: Colors.white54, size: 18),
+                onPressed: _load),
+          ]))),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
+          : _threads.isEmpty
+              ? const Center(child: Text('📭  No messages yet',
+                  style: TextStyle(color: Colors.white38)))
+              : RefreshIndicator(onRefresh: _load,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _threads.length,
+                    itemBuilder: (ctx, i) {
+                      final t = _threads[i];
+                      final unread = t['unread_count'] as int? ?? 0;
+                      final lastAt = t['last_message_at'] != null
+                          ? DateTime.tryParse(t['last_message_at'].toString()) : null;
+                      return GestureDetector(
+                        onTap: () => Navigator.push(context, MaterialPageRoute(
+                            builder: (_) => AdminSupportThreadScreen(
+                                userId: t['user_id'] as String,
+                                userName: t['user_name'] as String? ?? 'Unknown',
+                                userEmail: t['user_email'] as String? ?? '')))
+                            .then((_) => _load()),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: unread > 0 ? const Color(0xFF2A1A1A) : const Color(0xFF1A1A2E),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: unread > 0
+                                ? const Color(0xFFDC2626).withOpacity(0.4) : Colors.white10)),
+                          child: Row(children: [
+                            CircleAvatar(radius: 20,
+                              backgroundColor: const Color(0xFF6C63FF).withOpacity(0.2),
+                              child: Text((t['user_name'] as String? ?? '?').characters.first.toUpperCase(),
+                                  style: const TextStyle(color: Color(0xFF6C63FF),
+                                      fontWeight: FontWeight.bold))),
+                            const SizedBox(width: 10),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Row(children: [
+                                Expanded(child: Text(t['user_name'] as String? ?? 'Unknown',
+                                    style: TextStyle(color: Colors.white,
+                                        fontWeight: unread > 0 ? FontWeight.bold : FontWeight.normal,
+                                        fontSize: 13))),
+                                if (lastAt != null) Text(_fmt(lastAt),
+                                    style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                              ]),
+                              const SizedBox(height: 2),
+                              Text(t['last_message'] as String? ?? '',
+                                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 12,
+                                      color: unread > 0 ? Colors.white70 : Colors.white38,
+                                      fontWeight: unread > 0 ? FontWeight.w500 : FontWeight.normal)),
+                            ])),
+                            if (unread > 0) Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(
+                                  color: Color(0xFFDC2626), shape: BoxShape.circle),
+                              child: Text('$unread', style: const TextStyle(
+                                  color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
+                          ]),
+                        ),
+                      );
+                    })),
+    );
   }
 }
+
+// ── TEST LAB TAB ──────────────────────────────────────────────────────────────
+
+class _TestLabTab extends StatelessWidget {
+  const _TestLabTab();
+
+  @override
+  Widget build(BuildContext context) => ListView(
+    padding: const EdgeInsets.all(16),
+    children: [
+      const _SectionHead('🧪 Test user-facing screens'),
+      const SizedBox(height: 8),
+      _LabTile('🎯 Test Onboarding', 'Run full slider quiz — no data saved',
+          const Color(0xFF7C3AED), () => context.go('/admin-test-onboarding')),
+      _LabTile('🏠 Test Home Screen', 'Preview student home with your account',
+          const Color(0xFF059669), () => context.go('/admin-test-home')),
+      _LabTile('👁️ View as Any User', 'Pick a user and see their matches/interests',
+          const Color(0xFF0891B2), () => context.go('/admin-view-as')),
+      _LabTile('🎓 Test Career IQ Quiz', 'Take a quiz as a normal user',
+          const Color(0xFFD97706), () => context.go('/career-quiz')),
+      _LabTile('🗺️ Test Roadmap', 'View roadmap screen as student',
+          const Color(0xFFDB2777), () => context.go('/roadmap')),
+      _LabTile('🔍 Test Explore / Courses', 'Browse careers and courses with filters',
+          const Color(0xFF4F46E5), () => context.go('/explore')),
+      const SizedBox(height: 24),
+      const _SectionHead('⚙️ System actions'),
+      const SizedBox(height: 8),
+      _LabTile('📋 Copy Admin User ID', 'Copy your Supabase UID to clipboard',
+          const Color(0xFF6B7280), () async {
+            final uid = Supabase.instance.client.auth.currentUser?.id ?? '';
+            await Clipboard.setData(ClipboardData(text: uid));
+            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('UID copied to clipboard')));
+          }),
+    ],
+  );
+}
+
+class _LabTile extends StatelessWidget {
+  final String emoji, title, subtitle;
+  final Color color;
+  final VoidCallback onTap;
+  const _LabTile(this.title, this.subtitle, this.color, this.onTap, [this.emoji = '']);
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3))),
+      child: Row(children: [
+        Container(width: 40, height: 40,
+          decoration: BoxDecoration(color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10)),
+          child: Center(child: Text(emoji, style: const TextStyle(fontSize: 20)))),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(color: Colors.white,
+              fontWeight: FontWeight.bold, fontSize: 13)),
+          Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+        ])),
+        Icon(Icons.arrow_forward_ios_rounded, color: color.withOpacity(0.5), size: 14),
+      ]),
+    ),
+  );
+}
+
+// ── Re-export screens used internally ────────────────────────────────────────
+
+// These are defined in their own files but referenced here:
+// AdminUserProfileView  → admin_view_as_screen.dart
+// AdminSupportThreadScreen → admin_support_screen.dart
+// Import both at the top of this file in your project:
+// import 'package:edupaths/features/admin/screens/admin_view_as_screen.dart';
+// import 'package:edupaths/features/admin/screens/admin_support_screen.dart';
