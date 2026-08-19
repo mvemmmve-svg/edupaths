@@ -1,4 +1,7 @@
 // lib/features/profile/screens/profile_screen.dart
+// Fixed: Account Details now has ✏️ Edit button to change name and year group
+// Saves to DB via update_my_profile RPC
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -138,7 +141,6 @@ class ProfileScreen extends ConsumerWidget {
                 ? _MenuItem(emoji: '🏫', label: 'School Advisor Portal',
                     onTap: () => context.push('/school-advisor'))
                 : const SizedBox()),
-            // *** FIX: closing quote added after 'Interests & Strengths' ***
             _MenuItem(emoji: '🎯', label: 'Interests & Strengths',
               onTap: () => _editInterests(context, ref)),
             _MenuItem(emoji: '❓', label: 'How to use EduPath',
@@ -148,8 +150,7 @@ class ProfileScreen extends ConsumerWidget {
             Consumer(builder: (c, r, _) {
               final link = r.watch(mySchoolLinkProvider).valueOrNull;
               if (link != null) {
-                final schoolName =
-                    (link['schools'] as Map?)?['name'] ?? 'your school';
+                final schoolName = (link['schools'] as Map?)?['name'] ?? 'your school';
                 return _MenuItem(emoji: '🏫',
                   label: 'Linked to $schoolName',
                   onTap: () => ScaffoldMessenger.of(c).showSnackBar(SnackBar(
@@ -199,19 +200,16 @@ class ProfileScreen extends ConsumerWidget {
                 final confirmed = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     title: const Text('Log Out?', style: TextStyle(
                       fontFamily: 'Nunito', fontWeight: FontWeight.w900)),
                     content: const Text('Are you sure you want to log out?',
                       style: TextStyle(fontFamily: 'Nunito')),
                     actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
+                      TextButton(onPressed: () => Navigator.pop(ctx, false),
                         child: const Text('Cancel', style: TextStyle(
                           fontFamily: 'Nunito', color: AppColors.textMid))),
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
+                      TextButton(onPressed: () => Navigator.pop(ctx, true),
                         child: const Text('Log Out', style: TextStyle(
                           fontFamily: 'Nunito', color: AppColors.error,
                           fontWeight: FontWeight.w800))),
@@ -240,6 +238,7 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
+  // ── Account Details — with ✏️ Edit button ─────────────────────────────────
   void _showPersonalInfo(BuildContext context, WidgetRef ref) {
     final user = ref.read(appUserProvider).valueOrNull;
     showModalBottomSheet(
@@ -250,9 +249,35 @@ class ProfileScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Account Details', style: TextStyle(
-            fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 20),
+          // Handle bar
+          Center(child: Container(width: 40, height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(color: AppColors.border,
+              borderRadius: BorderRadius.circular(2)))),
+          // Header with Edit button
+          Row(children: [
+            const Text('Account Details', style: TextStyle(
+              fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w900)),
+            const Spacer(),
+            GestureDetector(
+              onTap: () {
+                Navigator.pop(context);
+                _showEditProfile(context, ref, user);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryPale,
+                  borderRadius: BorderRadius.circular(20)),
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.edit_rounded, size: 14, color: AppColors.primary),
+                  SizedBox(width: 4),
+                  Text('Edit', style: TextStyle(fontFamily: 'Nunito',
+                    fontSize: 13, fontWeight: FontWeight.w700,
+                    color: AppColors.primary)),
+                ])))
+          ]),
+          const SizedBox(height: 16),
           _InfoRow('Full Name', user?.displayName ?? 'Not set'),
           _InfoRow('Email', user?.email ?? 'Not set'),
           _InfoRow('School Year', user?.schoolYear ?? 'Not set'),
@@ -261,6 +286,115 @@ class ProfileScreen extends ConsumerWidget {
         ]),
       ),
     );
+  }
+
+  // ── Edit Profile — name and year, saves to DB ─────────────────────────────
+  void _showEditProfile(BuildContext context, WidgetRef ref, dynamic user) {
+    final nameCtrl = TextEditingController(text: user?.displayName ?? '');
+    String? selectedYear = user?.schoolYear;
+    const years = [
+      'Year 9', 'Year 10', 'Year 11',
+      'Year 12', 'Year 13', 'Post-16', 'Other'
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            left: 24, right: 24, top: 24,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 32),
+          child: Column(mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Handle bar
+            Center(child: Container(width: 40, height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(color: AppColors.border,
+                borderRadius: BorderRadius.circular(2)))),
+
+            const Text('Edit Profile', style: TextStyle(
+              fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 20),
+
+            // Name field
+            const Text('Your name', style: TextStyle(
+              fontFamily: 'Nunito', fontSize: 13, color: AppColors.textMid,
+              fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: nameCtrl,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                hintText: 'Enter your name',
+                filled: true,
+                fillColor: const Color(0xFFF5F5F5),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 14))),
+            const SizedBox(height: 20),
+
+            // Year group
+            const Text('Year group', style: TextStyle(
+              fontFamily: 'Nunito', fontSize: 13, color: AppColors.textMid,
+              fontWeight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            Wrap(spacing: 8, runSpacing: 8, children: years.map((y) {
+              final sel = selectedYear == y;
+              return GestureDetector(
+                onTap: () => setSheetState(() => selectedYear = y),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: sel ? AppColors.primary : const Color(0xFFF5F5F5),
+                    borderRadius: BorderRadius.circular(20)),
+                  child: Text(y, style: TextStyle(
+                    fontFamily: 'Nunito', fontSize: 13,
+                    fontWeight: sel ? FontWeight.bold : FontWeight.normal,
+                    color: sel ? Colors.white : AppColors.textDark))));
+            }).toList()),
+
+            const SizedBox(height: 28),
+
+            SizedBox(width: double.infinity, child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14))),
+              onPressed: () async {
+                final name = nameCtrl.text.trim();
+                if (name.isEmpty) return;
+                try {
+                  await Supabase.instance.client.rpc(
+                    'update_my_profile',
+                    params: {
+                      'p_name': name,
+                      'p_school_year': selectedYear ?? '',
+                    });
+                  ref.invalidate(appUserProvider);
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('✅ Profile updated!'),
+                      backgroundColor: AppColors.success));
+                  }
+                } catch (e) {
+                  if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(content: Text('Error: $e')));
+                }
+              },
+              child: const Text('Save changes', style: TextStyle(
+                fontFamily: 'Nunito', fontSize: 16, fontWeight: FontWeight.bold)),
+            )),
+          ]),
+        )));
   }
 
   Future<void> _editInterests(BuildContext context, WidgetRef ref) async {
@@ -292,8 +426,7 @@ class ProfileScreen extends ConsumerWidget {
       }
     }
     showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
+      context: context, isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => DraggableScrollableSheet(
@@ -328,15 +461,14 @@ class ProfileScreen extends ConsumerWidget {
           bottom: MediaQuery.of(ctx).viewInsets.bottom + 32),
         child: Column(mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(margin: const EdgeInsets.only(bottom: 20),
-            alignment: Alignment.center,
-            child: Container(width: 40, height: 4,
-              decoration: BoxDecoration(color: AppColors.border,
-                borderRadius: BorderRadius.circular(2)))),
+          Center(child: Container(width: 40, height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(color: AppColors.border,
+              borderRadius: BorderRadius.circular(2)))),
           const Text('Contact Us', style: TextStyle(
             fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
-          const Text('Having trouble logging in or using EduPaths? We are here to help.',
+          const Text('Having trouble? We\'re here to help.',
             style: TextStyle(fontFamily: 'Nunito', fontSize: 14,
               color: AppColors.textMid)),
           const SizedBox(height: 16),
@@ -345,16 +477,14 @@ class ProfileScreen extends ConsumerWidget {
             if (isPrem) {
               return PrimaryBtn(label: '💬 Message Support', onPressed: () {
                 Navigator.pop(ctx);
-                final loggedIn =
-                    Supabase.instance.client.auth.currentUser != null;
+                final loggedIn = Supabase.instance.client.auth.currentUser != null;
                 context.push(loggedIn ? '/support' : AppConstants.routeLogin);
               });
             }
             return GestureDetector(
               onTap: () { Navigator.pop(ctx); c.push(AppConstants.routePricing); },
               child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
+                width: double.infinity, padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppColors.primaryPale,
                   borderRadius: BorderRadius.circular(14),
@@ -362,17 +492,16 @@ class ProfileScreen extends ConsumerWidget {
                 child: const Row(children: [
                   Text('💬', style: TextStyle(fontSize: 20)),
                   SizedBox(width: 12),
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Live Chat Support', style: TextStyle(
-                      fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w900)),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                    Text('Live Chat Support', style: TextStyle(fontFamily: 'Nunito',
+                      fontSize: 14, fontWeight: FontWeight.w900)),
                     Text('Priority in-app replies — a Premium perk. Or email us below.',
                       style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5,
                         color: AppColors.textMid)),
                   ])),
                   Icon(Icons.lock_rounded, size: 16, color: AppColors.textLight),
-                ]),
-              ));
+                ])));
           }),
           const SizedBox(height: 16),
           EduCard(child: Column(children: [
@@ -397,7 +526,7 @@ class ProfileScreen extends ConsumerWidget {
               Text('💡', style: TextStyle(fontSize: 18)),
               SizedBox(width: 10),
               Expanded(child: Text(
-                'For login issues, use the Forgot Password link on the login page to reset your password.',
+                'For login issues, use the Forgot Password link on the login page.',
                 style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
                   color: AppColors.textMid, height: 1.4))),
             ])),
@@ -410,34 +539,34 @@ class ProfileScreen extends ConsumerWidget {
       context: context, isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => Consumer(builder: (ctx, ref, _) {
-        return Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Settings', style: TextStyle(
-              fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 20),
-            _SettingRow(emoji: '🔒', label: 'Privacy Policy',
-              trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
-              onTap: () {}),
-            _SettingRow(emoji: '📋', label: 'Terms of Service',
-              trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
-              onTap: () {}),
-            _SettingRow(emoji: '⭐', label: 'Rate EduPaths',
-              trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
-              onTap: () {}),
-            const SizedBox(height: 10),
-            const Center(child: Text('Version 1.0.0',
-              style: TextStyle(fontFamily: 'Nunito', fontSize: 12,
-                color: AppColors.textLight))),
-            const SizedBox(height: 10),
-          ]),
-        );
-      }),
-    );
+      builder: (ctx) => Consumer(builder: (ctx, ref, _) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Settings', style: TextStyle(
+            fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 20),
+          _SettingRow(emoji: 'ℹ️', label: 'About EduPaths',
+            trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
+            onTap: () { Navigator.pop(ctx); context.push('/about'); }),
+          _SettingRow(emoji: '🔒', label: 'Privacy Policy',
+            trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
+            onTap: () {}),
+          _SettingRow(emoji: '📋', label: 'Terms of Service',
+            trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
+            onTap: () {}),
+          _SettingRow(emoji: '⭐', label: 'Rate EduPaths',
+            trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
+            onTap: () {}),
+          const SizedBox(height: 10),
+          const Center(child: Text('Version 1.0.0', style: TextStyle(
+            fontFamily: 'Nunito', fontSize: 12, color: AppColors.textLight))),
+          const SizedBox(height: 10),
+        ]))));
   }
 }
+
+// ── Shared widgets ─────────────────────────────────────────────────────────────
 
 class _InfoRow extends StatelessWidget {
   final String label, value;
@@ -514,9 +643,8 @@ class _MenuItem extends StatelessWidget {
       ])));
 }
 
-// ══════════════════════════════════════════════
-// EDIT INTERESTS SHEET
-// ══════════════════════════════════════════════
+// ── Edit Interests Sheet ───────────────────────────────────────────────────────
+
 class _EditInterestsSheet extends ConsumerStatefulWidget {
   final ScrollController scrollController;
   const _EditInterestsSheet({required this.scrollController});
@@ -532,10 +660,7 @@ class _EditInterestsSheetState extends ConsumerState<_EditInterestsSheet> {
   int _tab = 0;
 
   @override
-  void initState() {
-    super.initState();
-    _loadCurrent();
-  }
+  void initState() { super.initState(); _loadCurrent(); }
 
   Future<void> _loadCurrent() async {
     final uid = Supabase.instance.client.auth.currentUser?.id;
@@ -572,7 +697,6 @@ class _EditInterestsSheetState extends ConsumerState<_EditInterestsSheet> {
   Widget build(BuildContext context) {
     final interestsAsync = ref.watch(interestsProvider);
     final traitsAsync = ref.watch(traitsProvider);
-
     return Column(children: [
       Container(margin: const EdgeInsets.only(top: 12, bottom: 8),
         width: 40, height: 4,
@@ -584,12 +708,10 @@ class _EditInterestsSheetState extends ConsumerState<_EditInterestsSheet> {
             fontFamily: 'Nunito', fontSize: 18, fontWeight: FontWeight.w900)),
           Row(children: [
             TextButton(
-              onPressed: () {
-                setState(() {
-                  if (_tab == 0) _selectedInterestIds.clear();
-                  else _selectedTraitIds.clear();
-                });
-              },
+              onPressed: () => setState(() {
+                if (_tab == 0) _selectedInterestIds.clear();
+                else _selectedTraitIds.clear();
+              }),
               child: const Text('Clear All', style: TextStyle(
                 fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w700,
                 color: AppColors.error))),
@@ -632,9 +754,7 @@ class _EditInterestsSheetState extends ConsumerState<_EditInterestsSheet> {
       const Divider(height: 1),
       Expanded(child: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _tab == 0
-              ? _buildInterests(interestsAsync)
-              : _buildTraits(traitsAsync)),
+          : _tab == 0 ? _buildInterests(interestsAsync) : _buildTraits(traitsAsync)),
     ]);
   }
 
@@ -674,8 +794,7 @@ class _EditInterestsSheetState extends ConsumerState<_EditInterestsSheet> {
                     color: sel ? Colors.white : AppColors.textMid))));
             }).toList()),
           ])).toList());
-      },
-    );
+      });
   }
 
   Widget _buildTraits(AsyncValue<List<Trait>> traitsAsync) {
@@ -720,8 +839,7 @@ class _EditInterestsSheetState extends ConsumerState<_EditInterestsSheet> {
                     ]))));
             }),
           ])).toList());
-      },
-    );
+      });
   }
 }
 
@@ -734,8 +852,7 @@ class _ContactRow extends StatelessWidget {
     child: Row(children: [
       Text(emoji, style: const TextStyle(fontSize: 20)),
       const SizedBox(width: 12),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontFamily: 'Nunito',
           fontSize: 13, fontWeight: FontWeight.w700)),
         Text(value, style: const TextStyle(fontFamily: 'Nunito',
