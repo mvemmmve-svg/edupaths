@@ -24,12 +24,19 @@ import '../../features/subscription/screens/subscription_screens.dart';
 import '../../features/school/screens/school_screens.dart';
 import '../../features/parent/screens/parent_screens.dart';
 import '../../shared/widgets/main_shell.dart';
+// ── New admin screens ──────────────────────────────────────────────────────
+import '../../features/admin/screens/admin_home_screen.dart';
+import '../../features/admin/screens/admin_support_screen.dart';
+import '../../features/admin/screens/admin_view_as_screen.dart';
+import '../../features/admin/screens/admin_test_screens.dart';
 
 // Routes that require login — EXACT matches only
 const _loginRequired = {
   '/saved', '/edubot', '/roadmap-plan', '/support', '/admin-inbox', '/discover',
   '/notifications', '/who-are-you', '/checkout', '/parent', '/admin',
   '/school-advisor', '/join-school', '/career-quiz',
+  '/admin-home', '/admin-support', '/admin-view-as',
+  '/admin-test-onboarding', '/admin-test-home',
 };
 
 // Routes that logged-in users should not see
@@ -47,7 +54,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: notifier,
     initialLocation: AppConstants.routeSplash,
     redirect: (context, state) {
-      final isLoggedIn = Supabase.instance.client.auth.currentUser != null;
+      final user = Supabase.instance.client.auth.currentUser;
+      final isLoggedIn = user != null;
       final loc = state.matchedLocation;
 
       // If logged in and on an auth page → go to home
@@ -55,17 +63,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         return AppConstants.routeHome;
       }
 
-      // Admin users never need WhoAreYou screen
-      if (isLoggedIn && loc == AppConstants.routeWhoAreYou) {
-        // Can't easily check isAdmin here without async — handled in login flow
-        // But if they somehow land here, let them through
-      }
-
       // Guests exploring the app are funnelled to the guest Profile page
-      // (which shows Sign Up / Log In) when they try to open gated content:
-      // any career detail page, Saved, or the Roadmap (item 4).
       if (!isLoggedIn &&
-          (loc.startsWith('/pathway/') ||      // career detail pages
+          (loc.startsWith('/pathway/') ||
            loc.startsWith('/course/') ||
            loc.startsWith('/alt-routes/') ||
            loc.startsWith('/why-match/') ||
@@ -74,16 +74,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         return AppConstants.routeProfile;
       }
 
-      // If not logged in and on a protected page → go to login.
-      // (Not splash: splash is a cold-start-only screen and shows blank
-      //  when reached via browser back/forward on web.)
+      // If not logged in and on a protected page → go to login
       if (!isLoggedIn && _loginRequired.contains(loc)) {
         return AppConstants.routeLogin;
       }
 
       return null;
     },
-    // F6 — branded 404 for any unknown path (never a blank/default error page)
     errorBuilder: (context, state) => const NotFoundScreen(),
     routes: [
       // ── Public routes ──────────────────────────────────────
@@ -126,7 +123,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: AppConstants.routeParentInsights,
         builder: (c, s) => const ParentInsightsScreen()),
 
-      // ── Admin ──────────────────────────────────────────────
+      // ── School / Advisor / Support ─────────────────────────
       GoRoute(path: '/school-advisor',
         builder: (c, s) => const SchoolAdvisorScreen()),
       GoRoute(path: '/discover',
@@ -145,6 +142,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           userLabel: s.uri.queryParameters['name'])),
       GoRoute(path: AppConstants.routeAdmin,
         builder: (c, s) => const AdminScreen()),
+
+      // ── Admin hub (new) ────────────────────────────────────
+      GoRoute(path: '/admin-home',
+        builder: (c, s) => const AdminHomeScreen()),
+      GoRoute(path: '/admin-support',
+        builder: (c, s) => const AdminSupportScreen()),
+      GoRoute(path: '/admin-view-as',
+        builder: (c, s) => const AdminViewAsScreen()),
+      GoRoute(path: '/admin-test-onboarding',
+        builder: (c, s) => const AdminTestOnboardingScreen()),
+      GoRoute(path: '/admin-test-home',
+        builder: (c, s) => const AdminTestHomeScreen()),
 
       // ── Career / Course detail ─────────────────────────────
       GoRoute(path: '/careers-by-category/:category',
