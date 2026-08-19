@@ -1,4 +1,7 @@
 // lib/core/services/router.dart
+// KEY CHANGE: routeOnboardingInterests now routes to OnboardingSliderScreen
+// not ThisOrThatScreen
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +10,7 @@ import '../constants/app_constants.dart';
 import '../router/app_router.dart' show NotFoundScreen;
 import '../../features/auth/screens/auth_screens.dart';
 import '../../features/onboarding/screens/onboarding_screens.dart';
+import '../../features/onboarding/screens/onboarding_slider_screen.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/explore/screens/explore_screen.dart';
 import '../../features/careers/screens/career_screens.dart';
@@ -24,13 +28,11 @@ import '../../features/subscription/screens/subscription_screens.dart';
 import '../../features/school/screens/school_screens.dart';
 import '../../features/parent/screens/parent_screens.dart';
 import '../../shared/widgets/main_shell.dart';
-// ── New admin screens ──────────────────────────────────────────────────────
 import '../../features/admin/screens/admin_home_screen.dart';
 import '../../features/admin/screens/admin_support_screen.dart';
 import '../../features/admin/screens/admin_view_as_screen.dart';
 import '../../features/admin/screens/admin_test_screens.dart';
 
-// Routes that require login — EXACT matches only
 const _loginRequired = {
   '/saved', '/edubot', '/roadmap-plan', '/support', '/admin-inbox', '/discover',
   '/notifications', '/who-are-you', '/checkout', '/parent', '/admin',
@@ -39,10 +41,8 @@ const _loginRequired = {
   '/admin-test-onboarding', '/admin-test-home',
 };
 
-// Routes that logged-in users should not see
 const _authRoutes = {'/', '/welcome', '/login', '/signup'};
 
-// Single global navigator key — must not be recreated on rebuild
 final _navigatorKey = GlobalKey<NavigatorState>();
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -54,16 +54,11 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: notifier,
     initialLocation: AppConstants.routeSplash,
     redirect: (context, state) {
-      final user = Supabase.instance.client.auth.currentUser;
-      final isLoggedIn = user != null;
+      final isLoggedIn = Supabase.instance.client.auth.currentUser != null;
       final loc = state.matchedLocation;
 
-      // If logged in and on an auth page → go to home
-      if (isLoggedIn && _authRoutes.contains(loc)) {
-        return AppConstants.routeHome;
-      }
+      if (isLoggedIn && _authRoutes.contains(loc)) return AppConstants.routeHome;
 
-      // Guests exploring the app are funnelled to the guest Profile page
       if (!isLoggedIn &&
           (loc.startsWith('/pathway/') ||
            loc.startsWith('/course/') ||
@@ -74,140 +69,138 @@ final routerProvider = Provider<GoRouter>((ref) {
         return AppConstants.routeProfile;
       }
 
-      // If not logged in and on a protected page → go to login
-      if (!isLoggedIn && _loginRequired.contains(loc)) {
-        return AppConstants.routeLogin;
-      }
+      if (!isLoggedIn && _loginRequired.contains(loc)) return AppConstants.routeLogin;
 
       return null;
     },
     errorBuilder: (context, state) => const NotFoundScreen(),
     routes: [
-      // ── Public routes ──────────────────────────────────────
+      // ── Public ─────────────────────────────────────────────────────────
       GoRoute(path: AppConstants.routeSplash,
-        builder: (c, s) => const SplashScreen()),
+          builder: (c, s) => const SplashScreen()),
       GoRoute(path: AppConstants.routeWelcome,
-        builder: (c, s) => const WelcomeScreen()),
+          builder: (c, s) => const WelcomeScreen()),
       GoRoute(path: AppConstants.routeSignup,
-        builder: (c, s) => const SignupScreen()),
+          builder: (c, s) => const SignupScreen()),
       GoRoute(path: AppConstants.routeLogin,
-        builder: (c, s) => const LoginScreen()),
+          builder: (c, s) => const LoginScreen()),
 
-      // ── Onboarding ─────────────────────────────────────────
+      // ── Onboarding ──────────────────────────────────────────────────────
       GoRoute(path: AppConstants.routeWhoAreYou,
-        builder: (c, s) => const WhoAreYouScreen()),
+          builder: (c, s) => const WhoAreYouScreen()),
       GoRoute(path: AppConstants.routeOnboardingStart,
-        builder: (c, s) => const OnboardingStartScreen()),
+          builder: (c, s) => const OnboardingStartScreen()),
+
+      // *** KEY FIX: routeOnboardingInterests now uses OnboardingSliderScreen ***
       GoRoute(path: AppConstants.routeOnboardingInterests,
-        builder: (c, s) => const ThisOrThatScreen()),
+          builder: (c, s) => const OnboardingSliderScreen()),
+
       GoRoute(path: AppConstants.routeOnboardingEnjoy,
-        builder: (c, s) => const EnjoyScreen()),
+          builder: (c, s) => const EnjoyScreen()),
       GoRoute(path: AppConstants.routeOnboardingPrefs,
-        builder: (c, s) => const PrefsScreen()),
+          builder: (c, s) => const PrefsScreen()),
       GoRoute(path: AppConstants.routeOnboardingSummary,
-        builder: (c, s) => const SummaryScreen()),
+          builder: (c, s) => const SummaryScreen()),
       GoRoute(path: AppConstants.routeOnboardingComplete,
-        builder: (c, s) => const OnboardingCompleteScreen()),
+          builder: (c, s) => const OnboardingCompleteScreen()),
 
-      // ── Subscription ───────────────────────────────────────
+      // ── Subscription ────────────────────────────────────────────────────
       GoRoute(path: AppConstants.routePricing,
-        builder: (c, s) => const PricingScreen()),
+          builder: (c, s) => const PricingScreen()),
       GoRoute(path: AppConstants.routeCheckout,
-        builder: (c, s) => CheckoutScreen(
-          plan: s.uri.queryParameters['plan'] ?? 'premium',
-          cycle: s.uri.queryParameters['cycle'] ?? 'monthly')),
+          builder: (c, s) => CheckoutScreen(
+              plan: s.uri.queryParameters['plan'] ?? 'premium',
+              cycle: s.uri.queryParameters['cycle'] ?? 'monthly')),
 
-      // ── Parent ─────────────────────────────────────────────
+      // ── Parent ──────────────────────────────────────────────────────────
       GoRoute(path: AppConstants.routeParentDashboard,
-        builder: (c, s) => const ParentDashboardScreen()),
+          builder: (c, s) => const ParentDashboardScreen()),
       GoRoute(path: AppConstants.routeParentInsights,
-        builder: (c, s) => const ParentInsightsScreen()),
+          builder: (c, s) => const ParentInsightsScreen()),
 
-      // ── School / Advisor / Support ─────────────────────────
+      // ── School / Support ────────────────────────────────────────────────
       GoRoute(path: '/school-advisor',
-        builder: (c, s) => const SchoolAdvisorScreen()),
+          builder: (c, s) => const SchoolAdvisorScreen()),
       GoRoute(path: '/discover',
-        builder: (c, s) => const DiscoverScreen()),
+          builder: (c, s) => const DiscoverScreen()),
       GoRoute(path: '/career-quiz',
-        builder: (c, s) => const CareerQuizScreen()),
+          builder: (c, s) => const CareerQuizScreen()),
       GoRoute(path: '/join-school',
-        builder: (c, s) => const JoinSchoolScreen()),
+          builder: (c, s) => const JoinSchoolScreen()),
       GoRoute(path: '/support',
-        builder: (c, s) => const SupportThreadScreen()),
+          builder: (c, s) => const SupportThreadScreen()),
       GoRoute(path: '/admin-inbox',
-        builder: (c, s) => const AdminInboxScreen()),
+          builder: (c, s) => const AdminInboxScreen()),
       GoRoute(path: '/admin-thread/:uid',
-        builder: (c, s) => SupportThreadScreen(
-          userId: s.pathParameters['uid'],
-          userLabel: s.uri.queryParameters['name'])),
+          builder: (c, s) => SupportThreadScreen(
+              userId: s.pathParameters['uid'],
+              userLabel: s.uri.queryParameters['name'])),
       GoRoute(path: AppConstants.routeAdmin,
-        builder: (c, s) => const AdminScreen()),
+          builder: (c, s) => const AdminScreen()),
 
-      // ── Admin hub (new) ────────────────────────────────────
+      // ── Admin hub ───────────────────────────────────────────────────────
       GoRoute(path: '/admin-home',
-        builder: (c, s) => const AdminHomeScreen()),
+          builder: (c, s) => const AdminHomeScreen()),
       GoRoute(path: '/admin-support',
-        builder: (c, s) => const AdminSupportScreen()),
+          builder: (c, s) => const AdminSupportScreen()),
       GoRoute(path: '/admin-view-as',
-        builder: (c, s) => const AdminViewAsScreen()),
+          builder: (c, s) => const AdminViewAsScreen()),
       GoRoute(path: '/admin-test-onboarding',
-        builder: (c, s) => const AdminTestOnboardingScreen()),
+          builder: (c, s) => const AdminTestOnboardingScreen()),
       GoRoute(path: '/admin-test-home',
-        builder: (c, s) => const AdminTestHomeScreen()),
+          builder: (c, s) => const AdminTestHomeScreen()),
 
-      // ── Career / Course detail ─────────────────────────────
+      // ── Career / Course detail ──────────────────────────────────────────
       GoRoute(path: '/careers-by-category/:category',
-        builder: (c, s) => CareersByCategoryScreen(
-          category: s.pathParameters['category']!)),
+          builder: (c, s) => CareersByCategoryScreen(
+              category: s.pathParameters['category']!)),
       GoRoute(path: '/pathway/:id',
-        builder: (c, s) => CareerDetailScreen(
-          careerId: s.pathParameters['id']!)),
+          builder: (c, s) => CareerDetailScreen(
+              careerId: s.pathParameters['id']!)),
       GoRoute(path: '/course/:id',
-        builder: (c, s) => CourseDetailScreen(
-          courseId: s.pathParameters['id']!)),
+          builder: (c, s) => CourseDetailScreen(
+              courseId: s.pathParameters['id']!)),
       GoRoute(path: '/alt-routes/:id',
-        builder: (c, s) => AltRoutesScreen(
-          careerId: s.pathParameters['id']!)),
+          builder: (c, s) => AltRoutesScreen(
+              careerId: s.pathParameters['id']!)),
       GoRoute(path: AppConstants.routeCompare,
-        builder: (c, s) => CompareScreen(
-          careerId: s.uri.queryParameters['career'])),
+          builder: (c, s) => CompareScreen(
+              careerId: s.uri.queryParameters['career'])),
       GoRoute(path: '/why-match/:id',
-        builder: (c, s) => WhyMatchScreen(
-          careerId: s.pathParameters['id']!)),
+          builder: (c, s) => WhyMatchScreen(
+              careerId: s.pathParameters['id']!)),
 
-      // ── Main shell with bottom/side nav ────────────────────
+      // ── Main shell ──────────────────────────────────────────────────────
       ShellRoute(
         builder: (c, s, child) => MainShell(child: child),
         routes: [
           GoRoute(path: AppConstants.routeHome,
-            builder: (c, s) => const HomeScreen()),
+              builder: (c, s) => const HomeScreen()),
           GoRoute(path: AppConstants.routeExplore,
-            builder: (c, s) => const ExploreScreen()),
+              builder: (c, s) => const ExploreScreen()),
           GoRoute(path: AppConstants.routeRoadmap,
-            builder: (c, s) => const RoadmapScreen()),
+              builder: (c, s) => const RoadmapScreen()),
           GoRoute(path: AppConstants.routeSaved,
-            builder: (c, s) => const SavedScreen()),
+              builder: (c, s) => const SavedScreen()),
           GoRoute(path: AppConstants.routeEduBot,
-            builder: (c, s) => const EdubotScreen()),
+              builder: (c, s) => const EdubotScreen()),
           GoRoute(path: AppConstants.routeProfile,
-            builder: (c, s) => const ProfileScreen()),
+              builder: (c, s) => const ProfileScreen()),
           GoRoute(path: AppConstants.routeNotifications,
-            builder: (c, s) => const NotificationsScreen()),
+              builder: (c, s) => const NotificationsScreen()),
           GoRoute(path: AppConstants.routeRoadmapPlan,
-            builder: (c, s) => const RoadmapPlanScreen()),
+              builder: (c, s) => const RoadmapPlanScreen()),
         ],
       ),
     ],
   );
 });
 
-// Only fires on actual sign in / sign out — NOT on every auth state tick
 class _AuthNotifier extends ChangeNotifier {
   late final _sub = Supabase.instance.client.auth.onAuthStateChange
       .listen((data) {
     final e = data.event;
-    if (e == AuthChangeEvent.signedIn ||
-        e == AuthChangeEvent.signedOut) {
+    if (e == AuthChangeEvent.signedIn || e == AuthChangeEvent.signedOut) {
       notifyListeners();
     }
   });
