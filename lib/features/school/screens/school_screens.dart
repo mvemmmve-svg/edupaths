@@ -628,7 +628,7 @@ class _CohortDetailState extends ConsumerState<CohortDetailScreen> {
         error: (e, _) => ErrorView(message: e.toString()),
         data: (students) {
           final active = students.where((s) =>
-              s['users']?['onboarding_complete'] == true).length;
+              s['status'] == 'active' || s['users']?['onboarding_complete'] == true).length;
           final filtered = students.where((s) => _search.isEmpty ||
               (s['student_name'] as String).toLowerCase()
                   .contains(_search.toLowerCase())).toList();
