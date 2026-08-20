@@ -610,8 +610,8 @@ class AltRoutesScreen extends ConsumerWidget {
                   Row(children: [
                     Text(r.emoji, style: const TextStyle(fontSize: 22)),
                     const SizedBox(width: 10),
-                    Text(r.title, style: const TextStyle(fontFamily: 'Nunito',
-                      fontSize: 15, fontWeight: FontWeight.w800)),
+                    Expanded(child: Text(r.title, style: const TextStyle(fontFamily: 'Nunito',
+                      fontSize: 15, fontWeight: FontWeight.w800))),
                     const Spacer(),
                     TagBadge(label: r.duration),
                   ]),
