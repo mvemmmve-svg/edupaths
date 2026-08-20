@@ -1,862 +1,1056 @@
-// lib/features/profile/screens/profile_screen.dart
-// Fixed: Account Details now has ✏️ Edit button to change name and year group
-// Saves to DB via update_my_profile RPC
-
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
-import '../../../shared/models/models.dart';
-import '../../../core/constants/app_constants.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
-import '../../../core/services/auth_service.dart';
-import '../../../core/services/db_service.dart';
-import '../../../core/services/providers.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../shared/widgets/shared_widgets.dart';
-import '../../school/screens/join_school_screen.dart';
-import '../../../main.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class ProfileScreen extends ConsumerWidget {
+final _supabase = Supabase.instance.client;
+
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final userAsync = ref.watch(appUserProvider);
-    final savedAsync = ref.watch(savedItemsProvider);
-    final matchAsync = ref.watch(matchesProvider);
-    final subAsync   = ref.watch(subscriptionProvider);
-    final isLoggedIn = ref.watch(currentUidProvider) != null;
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
 
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      body: SafeArea(child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(children: [
-          // Avatar
-          userAsync.when(
-            loading: () => const CircularProgressIndicator(),
-            error: (_, __) => const SizedBox(),
-            data: (user) => Column(children: [
-              Container(width: 80, height: 80,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.primary, AppColors.primaryLight]),
-                  borderRadius: BorderRadius.circular(24)),
-                child: Center(child: Text(user?.initials ?? 'G',
-                  style: const TextStyle(fontFamily: 'Nunito',
-                    color: Colors.white, fontSize: 30, fontWeight: FontWeight.w900)))),
-              const SizedBox(height: 12),
-              Text(user?.displayName ?? 'Guest',
-                style: Theme.of(context).textTheme.headlineMedium),
-              Text(user?.email ?? 'Browse as guest',
-                style: const TextStyle(fontFamily: 'Nunito',
-                  fontSize: 13, color: AppColors.textMid)),
-              const SizedBox(height: 6),
-              subAsync.when(
-                loading: () => const SizedBox(), error: (_, __) => const SizedBox(),
-                data: (sub) {
-                  if (sub?.isPremiumPlus == true) {
-                    return const TagBadge(label: '👑 Premium+ Member',
-                      bg: Color(0xFFFFF7E6), fg: Color(0xFFB45309));
-                  } else if (sub?.isPremium == true) {
-                    return const TagBadge(label: '⭐ Premium Member',
-                      bg: Color(0xFFFFFBEB), fg: Color(0xFF92400E));
-                  }
-                  return GestureDetector(
-                    onTap: () => context.push(AppConstants.routePricing),
-                    child: const TagBadge(label: '🚀 Upgrade to Premium'));
-                }),
-            ]),
-          ),
-          const SizedBox(height: 20),
+class _ProfileScreenState extends State<ProfileScreen> {
+  Map<String, dynamic>? _user;
+  List<Map<String, dynamic>> _interests = [];
+  List<Map<String, dynamic>> _traits = [];
+  bool _loading = true;
 
-          // Badges
-          if (isLoggedIn) ...[
-            const SectionHeader(title: 'My Badges 🏅'),
-            const SizedBox(height: 8),
-            Consumer(builder: (c, r, _) {
-              final matches = r.watch(matchesProvider).valueOrNull ?? [];
-              final saved = r.watch(savedItemsProvider).valueOrNull ?? [];
-              final streak = r.watch(streakProvider).valueOrNull ?? 0;
-              final swipes = r.watch(swipeCountProvider).valueOrNull ?? 0;
-              final badges = [
-                ('🎯', 'Matched', 'Get your career matches', matches.isNotEmpty),
-                ('🔖', 'Collector', 'Save your first item', saved.isNotEmpty),
-                ('🔥', 'On a roll', '3-day streak', streak >= 3),
-                ('🃏', 'Explorer', 'Swipe 10 careers in Discover', swipes >= 10),
-                ('💎', 'Superfan', '7-day streak', streak >= 7),
-              ];
-              return EduCard(child: Wrap(spacing: 8, runSpacing: 8, children: [
-                for (final b in badges)
-                  Tooltip(message: b.$3, child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: b.$4 ? AppColors.primaryPale : AppColors.bgGrey,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: b.$4
-                        ? AppColors.primary.withOpacity(0.4)
-                        : AppColors.border)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Opacity(opacity: b.$4 ? 1 : 0.35,
-                        child: Text(b.$1, style: const TextStyle(fontSize: 16))),
-                      const SizedBox(width: 6),
-                      Text(b.$2, style: TextStyle(fontFamily: 'Nunito',
-                        fontSize: 12, fontWeight: FontWeight.w800,
-                        color: b.$4 ? AppColors.textDark : AppColors.textLight)),
-                    ]))),
-              ]));
-            }),
-            const SizedBox(height: 16),
-          ],
-
-          if (isLoggedIn) ...[
-            Row(children: [
-              Expanded(child: _Stat(
-                value: savedAsync.valueOrNull?.length.toString() ?? '0',
-                label: 'Saved', emoji: '🔖',
-                bg: AppColors.primaryPale, fg: AppColors.primaryDark)),
-              const SizedBox(width: 10),
-              Expanded(child: _Stat(
-                value: matchAsync.valueOrNull?.isNotEmpty == true
-                    ? '${matchAsync.value!.first.matchScore}%' : '--',
-                label: 'Top Match', emoji: '🎯',
-                bg: const Color(0xFFECFDF5), fg: const Color(0xFF065F46))),
-              const SizedBox(width: 10),
-              Expanded(child: _Stat(
-                value: matchAsync.valueOrNull?.length.toString() ?? '0',
-                label: 'Matches', emoji: '⭐',
-                bg: const Color(0xFFFFFBEB), fg: const Color(0xFF92400E))),
-            ]),
-            const SizedBox(height: 20),
-          ],
-
-          // Menu
-          if (isLoggedIn) ...[
-            _MenuItem(emoji: '👤', label: 'Account Details',
-              onTap: () => _showPersonalInfo(context, ref)),
-            userAsync.when(
-              loading: () => const SizedBox(), error: (_, __) => const SizedBox(),
-              data: (user) => (user?.roleType == 'advisor' || user?.isAdmin == true)
-                ? _MenuItem(emoji: '🏫', label: 'School Advisor Portal',
-                    onTap: () => context.push('/school-advisor'))
-                : const SizedBox()),
-            _MenuItem(emoji: '🎯', label: 'Interests & Strengths',
-              onTap: () => _editInterests(context, ref)),
-            _MenuItem(emoji: '❓', label: 'How to use EduPath',
-              onTap: () => launchUrl(
-                Uri.parse('https://app.supademo.com/demo/cmr94i2lt1zwyqm3ag2rwmk59?utm_source=link'),
-                mode: LaunchMode.externalApplication)),
-            Consumer(builder: (c, r, _) {
-              final link = r.watch(mySchoolLinkProvider).valueOrNull;
-              if (link != null) {
-                final schoolName = (link['schools'] as Map?)?['name'] ?? 'your school';
-                return _MenuItem(emoji: '🏫',
-                  label: 'Linked to $schoolName',
-                  onTap: () => ScaffoldMessenger.of(c).showSnackBar(SnackBar(
-                    content: Text('You\'re linked to $schoolName ✓'))));
-              }
-              return _MenuItem(emoji: '🏫', label: 'Join your school',
-                onTap: () => c.push('/join-school'));
-            }),
-            _MenuItem(emoji: '🗺️', label: 'My Roadmap',
-              onTap: () => context.go(AppConstants.routeRoadmap)),
-            _MenuItem(emoji: '🔖', label: 'Saved Items',
-              onTap: () => context.go(AppConstants.routeSaved)),
-            _MenuItem(emoji: '🔔', label: 'Notifications',
-              onTap: () => context.push(AppConstants.routeNotifications)),
-          ],
-
-          _MenuItem(emoji: '⭐', label: 'Upgrade to Premium',
-            onTap: () => context.push(AppConstants.routePricing),
-            highlight: true),
-          _MenuItem(emoji: '⚙️', label: 'Settings',
-            onTap: () => _showSettings(context, ref)),
-          _MenuItem(emoji: '📧', label: 'Contact Us',
-            onTap: () => _showContactUs(context, ref)),
-
-          userAsync.when(
-            loading: () => const SizedBox(), error: (_, __) => const SizedBox(),
-            data: (user) => user?.isAdmin == true
-              ? Column(children: [
-                  _MenuItem(emoji: '🛠', label: 'Admin Panel',
-                    onTap: () => context.push(AppConstants.routeAdmin)),
-                  _MenuItem(emoji: '📥', label: 'Support Inbox',
-                    onTap: () => context.push('/admin-inbox')),
-                ])
-              : const SizedBox()),
-
-          const SizedBox(height: 8),
-
-          if (!isLoggedIn) ...[
-            PrimaryBtn(label: 'Sign Up — It\'s Free!',
-              onPressed: () => context.push(AppConstants.routeSignup)),
-            const SizedBox(height: 8),
-            OutlineBtn(label: 'Log In',
-              onPressed: () => context.push(AppConstants.routeLogin)),
-          ] else
-            EduCard(
-              onTap: () async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    title: const Text('Log Out?', style: TextStyle(
-                      fontFamily: 'Nunito', fontWeight: FontWeight.w900)),
-                    content: const Text('Are you sure you want to log out?',
-                      style: TextStyle(fontFamily: 'Nunito')),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel', style: TextStyle(
-                          fontFamily: 'Nunito', color: AppColors.textMid))),
-                      TextButton(onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Log Out', style: TextStyle(
-                          fontFamily: 'Nunito', color: AppColors.error,
-                          fontWeight: FontWeight.w800))),
-                    ]));
-                if (confirmed != true) return;
-                await AuthService.signOut();
-                ref.invalidate(appUserProvider);
-                ref.invalidate(matchesProvider);
-                ref.invalidate(savedItemsProvider);
-                ref.invalidate(subscriptionProvider);
-                ref.invalidate(onboardingProvider);
-                ref.invalidate(allCareersProvider);
-                await Future.delayed(const Duration(milliseconds: 300));
-                if (context.mounted) context.go(AppConstants.routeSplash);
-              },
-              padding: const EdgeInsets.all(16),
-              child: const Row(children: [
-                Text('🚪', style: TextStyle(fontSize: 20)),
-                SizedBox(width: 12),
-                Text('Log Out', style: TextStyle(fontFamily: 'Nunito',
-                  fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.error)),
-              ])),
-          const SizedBox(height: 80),
-        ]),
-      )),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _load();
   }
 
-  // ── Account Details — with ✏️ Edit button ─────────────────────────────────
-  void _showPersonalInfo(BuildContext context, WidgetRef ref) {
-    final user = ref.read(appUserProvider).valueOrNull;
-    showModalBottomSheet(
-      context: context, isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Handle bar
-          Center(child: Container(width: 40, height: 4,
-            margin: const EdgeInsets.only(bottom: 20),
-            decoration: BoxDecoration(color: AppColors.border,
-              borderRadius: BorderRadius.circular(2)))),
-          // Header with Edit button
-          Row(children: [
-            const Text('Account Details', style: TextStyle(
-              fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w900)),
-            const Spacer(),
-            GestureDetector(
-              onTap: () {
-                Navigator.pop(context);
-                _showEditProfile(context, ref, user);
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryPale,
-                  borderRadius: BorderRadius.circular(20)),
-                child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.edit_rounded, size: 14, color: AppColors.primary),
-                  SizedBox(width: 4),
-                  Text('Edit', style: TextStyle(fontFamily: 'Nunito',
-                    fontSize: 13, fontWeight: FontWeight.w700,
-                    color: AppColors.primary)),
-                ])))
-          ]),
-          const SizedBox(height: 16),
-          _InfoRow('Full Name', user?.displayName ?? 'Not set'),
-          _InfoRow('Email', user?.email ?? 'Not set'),
-          _InfoRow('School Year', user?.schoolYear ?? 'Not set'),
-          _InfoRow('Account Type', user?.roleType ?? 'student'),
-          const SizedBox(height: 20),
-        ]),
+  Future<void> _load() async {
+    try {
+      final authUser = _supabase.auth.currentUser;
+      if (authUser == null) {
+        setState(() => _loading = false);
+        return;
+      }
+
+      final userRes = await _supabase
+          .from('users')
+          .select(
+              'id, name, email, school_year, role, is_admin, onboarding_complete, created_at, supabase_uid')
+          .eq('supabase_uid', authUser.id)
+          .single();
+
+      final userId = userRes['id'];
+
+      final interestRes = await _supabase
+          .from('user_interest')
+          .select('interests(name, category)')
+          .eq('user_id', userId);
+
+      final traitRes = await _supabase
+          .from('user_trait')
+          .select('trait(name)')
+          .eq('user_id', userId);
+
+      setState(() {
+        _user = userRes;
+        _interests = (interestRes as List)
+            .map((r) => r['interests'] as Map<String, dynamic>? ?? {})
+            .where((i) => i.isNotEmpty)
+            .toList();
+        _traits = (traitRes as List)
+            .map((r) => r['trait'] as Map<String, dynamic>? ?? {})
+            .where((t) => t.isNotEmpty)
+            .toList();
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _signOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sign out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF5B4FE9)),
+            child: const Text('Sign out',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
+    if (confirmed == true && mounted) {
+      await _supabase.auth.signOut();
+      if (mounted) context.go('/login');
+    }
   }
 
-  // ── Edit Profile — name and year, saves to DB ─────────────────────────────
-  void _showEditProfile(BuildContext context, WidgetRef ref, dynamic user) {
-    final nameCtrl = TextEditingController(text: user?.displayName ?? '');
-    String? selectedYear = user?.schoolYear;
-    const years = [
-      'Year 9', 'Year 10', 'Year 11',
-      'Year 12', 'Year 13', 'Post-16', 'Other'
-    ];
-
+  void _openEditProfile() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) => Padding(
-          padding: EdgeInsets.only(
-            left: 24, right: 24, top: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 32),
-          child: Column(mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // Handle bar
-            Center(child: Container(width: 40, height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(color: AppColors.border,
-                borderRadius: BorderRadius.circular(2)))),
-
-            const Text('Edit Profile', style: TextStyle(
-              fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 20),
-
-            // Name field
-            const Text('Your name', style: TextStyle(
-              fontFamily: 'Nunito', fontSize: 13, color: AppColors.textMid,
-              fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: nameCtrl,
-              textCapitalization: TextCapitalization.words,
-              decoration: InputDecoration(
-                hintText: 'Enter your name',
-                filled: true,
-                fillColor: const Color(0xFFF5F5F5),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 14))),
-            const SizedBox(height: 20),
-
-            // Year group
-            const Text('Year group', style: TextStyle(
-              fontFamily: 'Nunito', fontSize: 13, color: AppColors.textMid,
-              fontWeight: FontWeight.w600)),
-            const SizedBox(height: 10),
-            Wrap(spacing: 8, runSpacing: 8, children: years.map((y) {
-              final sel = selectedYear == y;
-              return GestureDetector(
-                onTap: () => setSheetState(() => selectedYear = y),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: sel ? AppColors.primary : const Color(0xFFF5F5F5),
-                    borderRadius: BorderRadius.circular(20)),
-                  child: Text(y, style: TextStyle(
-                    fontFamily: 'Nunito', fontSize: 13,
-                    fontWeight: sel ? FontWeight.bold : FontWeight.normal,
-                    color: sel ? Colors.white : AppColors.textDark))));
-            }).toList()),
-
-            const SizedBox(height: 28),
-
-            SizedBox(width: double.infinity, child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14))),
-              onPressed: () async {
-                final name = nameCtrl.text.trim();
-                if (name.isEmpty) return;
-                try {
-                  await Supabase.instance.client.rpc(
-                    'update_my_profile',
-                    params: {
-                      'p_name': name,
-                      'p_school_year': selectedYear ?? '',
-                    });
-                  ref.invalidate(appUserProvider);
-                  if (ctx.mounted) Navigator.pop(ctx);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('✅ Profile updated!'),
-                      backgroundColor: AppColors.success));
-                  }
-                } catch (e) {
-                  if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(content: Text('Error: $e')));
-                }
-              },
-              child: const Text('Save changes', style: TextStyle(
-                fontFamily: 'Nunito', fontSize: 16, fontWeight: FontWeight.bold)),
-            )),
-          ]),
-        )));
+      backgroundColor: Colors.transparent,
+      builder: (_) => _EditProfileSheet(
+        user: _user!,
+        onSaved: _load,
+      ),
+    );
   }
 
-  Future<void> _editInterests(BuildContext context, WidgetRef ref) async {
-    final isPrem = ref.read(isPremiumProvider).valueOrNull ?? false;
-    if (!isPrem) {
-      final user = ref.read(appUserProvider).valueOrNull;
-      if (user != null) {
-        final count = user.interestsChangedCount ?? 0;
-        final lastChanged = user.interestsLastChanged;
-        final weekAgo = DateTime.now().subtract(const Duration(days: 7));
-        if (count >= 2 && lastChanged != null && lastChanged.isAfter(weekAgo)) {
-          showDialog(context: context, builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text('Weekly Limit Reached', style: TextStyle(
-              fontFamily: 'Nunito', fontWeight: FontWeight.w900)),
-            content: const Text(
-              "Free users can change interests & traits up to 2 times per week.\n\nUpgrade to Premium for unlimited changes.",
-              style: TextStyle(fontFamily: 'Nunito')),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx),
-                child: const Text('OK')),
-              TextButton(
-                onPressed: () { Navigator.pop(ctx); context.push(AppConstants.routePricing); },
-                child: const Text('Upgrade', style: TextStyle(
-                  color: AppColors.primary, fontWeight: FontWeight.w800))),
-            ]));
-          return;
-        }
+  void _openEditInterests() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _EditInterestsSheet(
+        userId: _user!['id'],
+        onSaved: _load,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final name = _user?['name'] ?? 'Student';
+    final year = _user?['school_year'] ?? '';
+    final email = _user?['email'] ?? '';
+    final isAdmin = _user?['is_admin'] == true;
+    final isOnboarded = _user?['onboarding_complete'] == true;
+    final joinedAt = _user?['created_at'] != null
+        ? _formatDate(_user!['created_at'])
+        : '—';
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF0EFFF),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        title: const Text('Profile',
+            style: TextStyle(
+                color: Color(0xFF1A1A2E), fontWeight: FontWeight.bold)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // ── Hero card ──────────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF5B4FE9), Color(0xFF8B7FF5)],
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: Colors.white24,
+                  radius: 32,
+                  child: Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 26),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20)),
+                      if (year.isNotEmpty)
+                        Text(year,
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 13)),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isOnboarded
+                                  ? Icons.check_box
+                                  : Icons.pending_outlined,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              isOnboarded
+                                  ? 'Profile Complete'
+                                  : 'Profile In Progress',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.white70),
+                  onPressed: _user != null ? _openEditProfile : null,
+                  tooltip: 'Edit profile',
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Account details ────────────────────────────────────────────
+          _SectionCard(
+            title: 'Account Details',
+            child: Column(
+              children: [
+                _DetailRow(label: 'Name', value: name),
+                _DetailRow(label: 'Email', value: email),
+                _DetailRow(label: 'School year', value: year),
+                _DetailRow(
+                    label: 'Profile',
+                    value: isOnboarded ? 'Complete' : 'In progress'),
+                _DetailRow(label: 'Joined', value: joinedAt),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Interests & Strengths ──────────────────────────────────────
+          _SectionCard(
+            title: 'Interests & Strengths',
+            trailing: TextButton(
+              onPressed: _openEditInterests,
+              child: const Text('Edit',
+                  style: TextStyle(color: Color(0xFF5B4FE9))),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_interests.isEmpty && _traits.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'Complete your profile to see your interests and strengths.',
+                      style: TextStyle(color: Color(0xFF888AAA)),
+                    ),
+                  )
+                else ...[
+                  if (_interests.isNotEmpty) ...[
+                    const _SubHeading(icon: Icons.interests, label: 'Interests'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: _interests
+                          .map((i) => _Chip(label: i['name'] ?? ''))
+                          .toList(),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+                  if (_traits.isNotEmpty) ...[
+                    const _SubHeading(
+                        icon: Icons.star_border, label: 'Strengths'),
+                    const SizedBox(height: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: _traits
+                          .map((t) => Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.check_circle,
+                                        size: 16,
+                                        color: Color(0xFF5B4FE9)),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        t['name'] ?? '',
+                                        style: const TextStyle(
+                                            color: Color(0xFF1A1A2E),
+                                            fontSize: 13),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ))
+                          .toList(),
+                    ),
+                  ],
+                ],
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Settings ───────────────────────────────────────────────────
+          _SectionCard(
+            title: 'Settings',
+            child: Column(
+              children: [
+                if (!isOnboarded)
+                  _SettingsTile(
+                    icon: Icons.rocket_launch_outlined,
+                    label: 'Complete your profile',
+                    color: const Color(0xFF5B4FE9),
+                    onTap: () => context.go('/onboarding/start'),
+                  ),
+                _SettingsTile(
+                  icon: Icons.school_outlined,
+                  label: 'Join your school',
+                  onTap: () => context.push('/join-school'),
+                ),
+                _SettingsTile(
+                  icon: Icons.family_restroom,
+                  label: 'Parent dashboard',
+                  onTap: () => context.push('/parent'),
+                ),
+                if (isAdmin)
+                  _SettingsTile(
+                    icon: Icons.admin_panel_settings_outlined,
+                    label: 'Admin panel',
+                    color: Colors.deepOrange,
+                    onTap: () => context.push('/admin'),
+                  ),
+                _SettingsTile(
+                  icon: Icons.info_outline,
+                  label: 'About EduPaths',
+                  onTap: () => context.push('/about'),
+                ),
+                _SettingsTile(
+                  icon: Icons.support_agent_outlined,
+                  label: 'Help & support',
+                  onTap: () => context.push('/support'),
+                ),
+                _SettingsTile(
+                  icon: Icons.logout,
+                  label: 'Sign out',
+                  color: Colors.red,
+                  onTap: _signOut,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(String iso) {
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      return '${dt.day}/${dt.month}/${dt.year}';
+    } catch (_) {
+      return iso;
+    }
+  }
+}
+
+// ─── Edit profile sheet ───────────────────────────────────────────────────────
+
+class _EditProfileSheet extends StatefulWidget {
+  final Map<String, dynamic> user;
+  final VoidCallback onSaved;
+
+  const _EditProfileSheet({required this.user, required this.onSaved});
+
+  @override
+  State<_EditProfileSheet> createState() => _EditProfileSheetState();
+}
+
+class _EditProfileSheetState extends State<_EditProfileSheet> {
+  late TextEditingController _nameCtrl;
+  String? _selectedYear;
+  bool _saving = false;
+
+  final _years = [
+    'Year 7', 'Year 8', 'Year 9', 'Year 10', 'Year 11',
+    'Year 12', 'Year 13', 'College', 'University', 'Other'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl =
+        TextEditingController(text: widget.user['name']?.toString() ?? '');
+    _selectedYear = widget.user['school_year']?.toString();
+    if (_selectedYear != null && !_years.contains(_selectedYear)) {
+      _selectedYear = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      await _supabase.rpc('update_my_profile', params: {
+        'p_name': _nameCtrl.text.trim(),
+        'p_school_year': _selectedYear ?? '',
+      });
+      widget.onSaved();
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      setState(() => _saving = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save — try again.')),
+        );
       }
     }
-    showModalBottomSheet(
-      context: context, isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.9, maxChildSize: 0.95, minChildSize: 0.5,
-        expand: false,
-        builder: (_, ctrl) => _EditInterestsSheet(scrollController: ctrl),
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      maxChildSize: 0.9,
+      builder: (_, ctrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: ListView(
+          controller: ctrl,
+          padding: const EdgeInsets.all(24),
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              alignment: Alignment.center,
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Edit Profile',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A1A2E))),
+                TextButton(
+                  onPressed: _saving ? null : _save,
+                  child: _saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Save',
+                          style: TextStyle(
+                              color: Color(0xFF5B4FE9),
+                              fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Text('Name',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600, color: Color(0xFF1A1A2E))),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _nameCtrl,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                hintText: 'Your name',
+                filled: true,
+                fillColor: const Color(0xFFF0EFFF),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 14),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('School Year',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600, color: Color(0xFF1A1A2E))),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _years.map((y) {
+                final selected = _selectedYear == y;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedYear = y),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? const Color(0xFF5B4FE9)
+                          : const Color(0xFFF0EFFF),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      y,
+                      style: TextStyle(
+                          color: selected
+                              ? Colors.white
+                              : const Color(0xFF1A1A2E),
+                          fontWeight: selected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          fontSize: 13),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
       ),
-    ).then((_) async {
-      if (!context.mounted) return;
-      final uid = Supabase.instance.client.auth.currentUser?.id;
-      if (uid != null) {
-        await DbService.generateMatches([]);
-        ref.invalidate(matchesProvider);
-        ref.invalidate(appUserProvider);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('✅ Matches updated!'),
-            backgroundColor: AppColors.success));
-        }
-      }
-    });
-  }
-
-  void _showContactUs(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context, isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 24, right: 24, top: 24,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 32),
-        child: Column(mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Center(child: Container(width: 40, height: 4,
-            margin: const EdgeInsets.only(bottom: 20),
-            decoration: BoxDecoration(color: AppColors.border,
-              borderRadius: BorderRadius.circular(2)))),
-          const Text('Contact Us', style: TextStyle(
-            fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
-          const Text('Having trouble? We\'re here to help.',
-            style: TextStyle(fontFamily: 'Nunito', fontSize: 14,
-              color: AppColors.textMid)),
-          const SizedBox(height: 16),
-          Consumer(builder: (c, r, _) {
-            final isPrem = r.watch(isPremiumProvider).valueOrNull ?? false;
-            if (isPrem) {
-              return PrimaryBtn(label: '💬 Message Support', onPressed: () {
-                Navigator.pop(ctx);
-                final loggedIn = Supabase.instance.client.auth.currentUser != null;
-                context.push(loggedIn ? '/support' : AppConstants.routeLogin);
-              });
-            }
-            return GestureDetector(
-              onTap: () { Navigator.pop(ctx); c.push(AppConstants.routePricing); },
-              child: Container(
-                width: double.infinity, padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryPale,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3))),
-                child: const Row(children: [
-                  Text('💬', style: TextStyle(fontSize: 20)),
-                  SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                    Text('Live Chat Support', style: TextStyle(fontFamily: 'Nunito',
-                      fontSize: 14, fontWeight: FontWeight.w900)),
-                    Text('Priority in-app replies — a Premium perk. Or email us below.',
-                      style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5,
-                        color: AppColors.textMid)),
-                  ])),
-                  Icon(Icons.lock_rounded, size: 16, color: AppColors.textLight),
-                ])));
-          }),
-          const SizedBox(height: 16),
-          EduCard(child: Column(children: [
-            _ContactRow(emoji: '📧', label: 'General Support',
-              value: 'support@edupaths.co.uk'),
-            const Divider(height: 1),
-            _ContactRow(emoji: '🐛', label: 'Report a Bug',
-              value: 'bugs@edupaths.co.uk'),
-            const Divider(height: 1),
-            _ContactRow(emoji: '💬', label: 'General Enquiries',
-              value: 'hello@edupaths.co.uk'),
-            const Divider(height: 1),
-            _ContactRow(emoji: '🏫', label: 'School Partnerships',
-              value: 'schools@edupaths.co.uk'),
-          ])),
-          const SizedBox(height: 16),
-          Container(padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.primaryPale,
-              borderRadius: BorderRadius.circular(12)),
-            child: const Row(children: [
-              Text('💡', style: TextStyle(fontSize: 18)),
-              SizedBox(width: 10),
-              Expanded(child: Text(
-                'For login issues, use the Forgot Password link on the login page.',
-                style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
-                  color: AppColors.textMid, height: 1.4))),
-            ])),
-          const SizedBox(height: 16),
-        ])));
-  }
-
-  void _showSettings(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context, isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => Consumer(builder: (ctx, ref, _) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Settings', style: TextStyle(
-            fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 20),
-          _SettingRow(emoji: 'ℹ️', label: 'About EduPaths',
-            trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
-            onTap: () { Navigator.pop(ctx); context.push('/about'); }),
-          _SettingRow(emoji: '🔒', label: 'Privacy Policy',
-            trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
-            onTap: () {}),
-          _SettingRow(emoji: '📋', label: 'Terms of Service',
-            trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
-            onTap: () {}),
-          _SettingRow(emoji: '⭐', label: 'Rate EduPaths',
-            trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
-            onTap: () {}),
-          const SizedBox(height: 10),
-          const Center(child: Text('Version 1.0.0', style: TextStyle(
-            fontFamily: 'Nunito', fontSize: 12, color: AppColors.textLight))),
-          const SizedBox(height: 10),
-        ]))));
+    );
   }
 }
 
-// ── Shared widgets ─────────────────────────────────────────────────────────────
+// ─── Edit Interests & Strengths sheet ────────────────────────────────────────
 
-class _InfoRow extends StatelessWidget {
-  final String label, value;
-  const _InfoRow(this.label, this.value);
+class _EditInterestsSheet extends StatefulWidget {
+  final String userId;
+  final VoidCallback onSaved;
+
+  const _EditInterestsSheet({required this.userId, required this.onSaved});
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 14),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SizedBox(width: 110, child: Text(label, style: const TextStyle(
-        fontFamily: 'Nunito', fontSize: 13, color: AppColors.textMid,
-        fontWeight: FontWeight.w600))),
-      Expanded(child: Text(value, style: const TextStyle(
-        fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w700))),
-    ]));
+  State<_EditInterestsSheet> createState() => _EditInterestsSheetState();
 }
 
-class _SettingRow extends StatelessWidget {
-  final String emoji, label;
-  final Widget trailing;
-  final VoidCallback? onTap;
-  const _SettingRow({required this.emoji, required this.label,
-    required this.trailing, this.onTap});
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(children: [
-        Text(emoji, style: const TextStyle(fontSize: 20)),
-        const SizedBox(width: 14),
-        Expanded(child: Text(label, style: const TextStyle(
-          fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w700))),
-        trailing,
-      ])));
-}
-
-class _Stat extends StatelessWidget {
-  final String value, label, emoji;
-  final Color bg, fg;
-  const _Stat({required this.value, required this.label,
-    required this.emoji, required this.bg, required this.fg});
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(14)),
-    child: Column(children: [
-      Text(emoji, style: const TextStyle(fontSize: 18)),
-      const SizedBox(height: 4),
-      Text(value, style: TextStyle(fontFamily: 'Nunito',
-        fontSize: 20, fontWeight: FontWeight.w900, color: fg)),
-      Text(label, style: const TextStyle(fontFamily: 'Nunito',
-        fontSize: 10, color: AppColors.textMid, fontWeight: FontWeight.w600)),
-    ]));
-}
-
-class _MenuItem extends StatelessWidget {
-  final String emoji, label;
-  final VoidCallback onTap;
-  final bool highlight;
-  const _MenuItem({required this.emoji, required this.label,
-    required this.onTap, this.highlight = false});
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: EduCard(onTap: onTap, padding: const EdgeInsets.all(16),
-      child: Row(children: [
-        Text(emoji, style: const TextStyle(fontSize: 20)),
-        const SizedBox(width: 12),
-        Expanded(child: Text(label, style: TextStyle(fontFamily: 'Nunito',
-          fontSize: 14, fontWeight: FontWeight.w700,
-          color: highlight ? AppColors.primary : AppColors.textDark))),
-        Icon(Icons.chevron_right_rounded,
-          color: highlight ? AppColors.primary : AppColors.textLight),
-      ])));
-}
-
-// ── Edit Interests Sheet ───────────────────────────────────────────────────────
-
-class _EditInterestsSheet extends ConsumerStatefulWidget {
-  final ScrollController scrollController;
-  const _EditInterestsSheet({required this.scrollController});
-  @override
-  ConsumerState<_EditInterestsSheet> createState() => _EditInterestsSheetState();
-}
-
-class _EditInterestsSheetState extends ConsumerState<_EditInterestsSheet> {
+class _EditInterestsSheetState extends State<_EditInterestsSheet>
+    with SingleTickerProviderStateMixin {
+  late TabController _tab;
+  List<Map<String, dynamic>> _allInterests = [];
+  List<Map<String, dynamic>> _allTraits = [];
   Set<String> _selectedInterestIds = {};
   Set<String> _selectedTraitIds = {};
   bool _loading = true;
   bool _saving = false;
-  int _tab = 0;
 
   @override
-  void initState() { super.initState(); _loadCurrent(); }
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 2, vsync: this);
+    _loadAll();
+  }
 
-  Future<void> _loadCurrent() async {
-    final uid = Supabase.instance.client.auth.currentUser?.id;
-    if (uid == null) { setState(() => _loading = false); return; }
-    final user = await DbService.getUserByUid(uid);
-    if (user == null) { setState(() => _loading = false); return; }
-    final interests = await Supabase.instance.client
-        .from('user_interest').select('interest_id').eq('user_id', user.id);
-    final traits = await Supabase.instance.client
-        .from('user_trait').select('trait_id').eq('user_id', user.id);
+  Future<void> _loadAll() async {
+    final interestsRes =
+        await _supabase.from('interests').select('id, name, category').order('category').order('name');
+    final traitsRes =
+        await _supabase.from('trait').select('id, name, category').order('category').order('name');
+    final userInterestsRes = await _supabase
+        .from('user_interest')
+        .select('interest_id')
+        .eq('user_id', widget.userId);
+    final userTraitsRes = await _supabase
+        .from('user_trait')
+        .select('trait_id')
+        .eq('user_id', widget.userId);
+
     setState(() {
-      _selectedInterestIds = Set<String>.from(
-          (interests as List).map((e) => e['interest_id'] as String));
-      _selectedTraitIds = Set<String>.from(
-          (traits as List).map((e) => e['trait_id'] as String));
+      _allInterests = List<Map<String, dynamic>>.from(interestsRes);
+      _allTraits = List<Map<String, dynamic>>.from(traitsRes);
+      _selectedInterestIds = {
+        for (final r in userInterestsRes as List)
+          r['interest_id']?.toString() ?? ''
+      }..remove('');
+      _selectedTraitIds = {
+        for (final r in userTraitsRes as List)
+          r['trait_id']?.toString() ?? ''
+      }..remove('');
       _loading = false;
     });
   }
 
   Future<void> _save() async {
     setState(() => _saving = true);
-    final uid = Supabase.instance.client.auth.currentUser?.id;
-    if (uid == null) return;
-    final user = await DbService.getUserByUid(uid);
-    if (user == null) return;
-    await Future.wait([
-      DbService.saveUserInterests(user.id, _selectedInterestIds.toList()),
-      DbService.saveUserTraits(user.id, _selectedTraitIds.toList()),
-    ]);
-    if (mounted) Navigator.pop(context);
+    try {
+      // Save interests
+      await _supabase
+          .from('user_interest')
+          .delete()
+          .eq('user_id', widget.userId);
+      if (_selectedInterestIds.isNotEmpty) {
+        await _supabase.from('user_interest').insert(
+          _selectedInterestIds
+              .map((id) => {'user_id': widget.userId, 'interest_id': id, 'score': 3})
+              .toList(),
+        );
+      }
+      // Save traits
+      await _supabase
+          .from('user_trait')
+          .delete()
+          .eq('user_id', widget.userId);
+      if (_selectedTraitIds.isNotEmpty) {
+        await _supabase.from('user_trait').insert(
+          _selectedTraitIds
+              .map((id) => {'user_id': widget.userId, 'trait_id': id})
+              .toList(),
+        );
+      }
+      // Regenerate matches
+      final authUser = _supabase.auth.currentUser;
+      if (authUser != null) {
+        await _supabase.rpc('generate_smart_matches',
+            params: {'p_user_uid': authUser.id});
+      }
+      widget.onSaved();
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      setState(() => _saving = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save — try again.')),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final interestsAsync = ref.watch(interestsProvider);
-    final traitsAsync = ref.watch(traitsProvider);
-    return Column(children: [
-      Container(margin: const EdgeInsets.only(top: 12, bottom: 8),
-        width: 40, height: 4,
-        decoration: BoxDecoration(color: AppColors.border,
-          borderRadius: BorderRadius.circular(2))),
-      Padding(padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Text('Edit Interests & Strengths', style: TextStyle(
-            fontFamily: 'Nunito', fontSize: 18, fontWeight: FontWeight.w900)),
-          Row(children: [
-            TextButton(
-              onPressed: () => setState(() {
-                if (_tab == 0) _selectedInterestIds.clear();
-                else _selectedTraitIds.clear();
-              }),
-              child: const Text('Clear All', style: TextStyle(
-                fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w700,
-                color: AppColors.error))),
-            TextButton(
-              onPressed: _saving ? null : _save,
-              child: _saving
-                  ? const SizedBox(width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Save', style: TextStyle(
-                      fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w800,
-                      color: AppColors.primary))),
-          ]),
-        ])),
-      Padding(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        child: Row(children: [
-          Expanded(child: GestureDetector(
-            onTap: () => setState(() => _tab = 0),
-            child: Container(padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: _tab == 0 ? AppColors.primary : AppColors.bgGrey,
-                borderRadius: BorderRadius.circular(10)),
-              child: Text('Interests (${_selectedInterestIds.length})',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: _tab == 0 ? Colors.white : AppColors.textMid))))),
-          const SizedBox(width: 8),
-          Expanded(child: GestureDetector(
-            onTap: () => setState(() => _tab = 1),
-            child: Container(padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: _tab == 1 ? AppColors.primary : AppColors.bgGrey,
-                borderRadius: BorderRadius.circular(10)),
-              child: Text('Strengths (${_selectedTraitIds.length})',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: _tab == 1 ? Colors.white : AppColors.textMid))))),
-        ])),
-      const Divider(height: 1),
-      Expanded(child: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _tab == 0 ? _buildInterests(interestsAsync) : _buildTraits(traitsAsync)),
-    ]);
-  }
-
-  Widget _buildInterests(AsyncValue<List<Interest>> interestsAsync) {
-    return interestsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Error: $e')),
-      data: (interests) {
-        final byCategory = <String, List<Interest>>{};
-        for (final i in interests) {
-          byCategory.putIfAbsent(i.category ?? 'Other', () => []).add(i);
-        }
-        return ListView(controller: widget.scrollController,
-          padding: const EdgeInsets.all(16),
-          children: byCategory.entries.map((e) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Padding(padding: const EdgeInsets.only(top: 12, bottom: 8),
-              child: Text(e.key.toUpperCase(), style: const TextStyle(
-                fontFamily: 'Nunito', fontSize: 11, fontWeight: FontWeight.w800,
-                color: AppColors.textLight, letterSpacing: 0.8))),
-            Wrap(spacing: 8, runSpacing: 8, children: e.value.map((i) {
-              final sel = _selectedInterestIds.contains(i.id);
-              return GestureDetector(
-                onTap: () => setState(() => sel
-                    ? _selectedInterestIds.remove(i.id)
-                    : _selectedInterestIds.add(i.id)),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: sel ? AppColors.primary : AppColors.bgCard,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: sel ? AppColors.primary : AppColors.border)),
-                  child: Text(i.trimmed, style: TextStyle(
-                    fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w700,
-                    color: sel ? Colors.white : AppColors.textMid))));
-            }).toList()),
-          ])).toList());
-      });
-  }
-
-  Widget _buildTraits(AsyncValue<List<Trait>> traitsAsync) {
-    return traitsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Error: $e')),
-      data: (traits) {
-        final byCategory = <String, List<Trait>>{};
-        for (final t in traits) {
-          byCategory.putIfAbsent(t.category ?? 'Other', () => []).add(t);
-        }
-        return ListView(controller: widget.scrollController,
-          padding: const EdgeInsets.all(16),
-          children: byCategory.entries.map((e) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Padding(padding: const EdgeInsets.only(top: 12, bottom: 8),
-              child: Text(e.key.toUpperCase(), style: const TextStyle(
-                fontFamily: 'Nunito', fontSize: 11, fontWeight: FontWeight.w800,
-                color: AppColors.textLight, letterSpacing: 0.8))),
-            ...e.value.map((t) {
-              final sel = _selectedTraitIds.contains(t.id);
-              return Padding(padding: const EdgeInsets.only(bottom: 8),
-                child: GestureDetector(
-                  onTap: () => setState(() => sel
-                      ? _selectedTraitIds.remove(t.id)
-                      : _selectedTraitIds.add(t.id)),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: sel ? AppColors.primaryPale : AppColors.bgCard,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: sel ? AppColors.primary : AppColors.border,
-                        width: sel ? 2 : 1.5)),
-                    child: Row(children: [
-                      Expanded(child: Text(t.trimmed, style: TextStyle(
-                        fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w600,
-                        color: sel ? AppColors.primary : AppColors.textDark))),
-                      if (sel) const Icon(Icons.check_circle_rounded,
-                        color: AppColors.primary, size: 18),
-                    ]))));
-            }),
-          ])).toList());
-      });
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      maxChildSize: 0.95,
+      builder: (_, ctrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Row(
+                children: [
+                  const Text('Edit Interests & Strengths',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A2E))),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      _selectedInterestIds.clear();
+                      _selectedTraitIds.clear();
+                    }),
+                    child: const Text('Clear All',
+                        style: TextStyle(color: Colors.red)),
+                  ),
+                  TextButton(
+                    onPressed: _saving ? null : _save,
+                    child: _saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Save',
+                            style: TextStyle(
+                                color: Color(0xFF5B4FE9),
+                                fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ),
+            TabBar(
+              controller: _tab,
+              labelColor: const Color(0xFF5B4FE9),
+              unselectedLabelColor: Colors.grey,
+              indicatorColor: const Color(0xFF5B4FE9),
+              tabs: [
+                Tab(text: 'Interests (${_selectedInterestIds.length})'),
+                Tab(text: 'Strengths (${_selectedTraitIds.length})'),
+              ],
+            ),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : TabBarView(
+                      controller: _tab,
+                      children: [
+                        _InterestPicker(
+                          items: _allInterests,
+                          selected: _selectedInterestIds,
+                          onToggle: (id) => setState(() {
+                            if (_selectedInterestIds.contains(id)) {
+                              _selectedInterestIds.remove(id);
+                            } else {
+                              _selectedInterestIds.add(id);
+                            }
+                          }),
+                        ),
+                        _TraitPicker(
+                          items: _allTraits,
+                          selected: _selectedTraitIds,
+                          onToggle: (id) => setState(() {
+                            if (_selectedTraitIds.contains(id)) {
+                              _selectedTraitIds.remove(id);
+                            } else {
+                              _selectedTraitIds.add(id);
+                            }
+                          }),
+                        ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
-class _ContactRow extends StatelessWidget {
-  final String emoji, label, value;
-  const _ContactRow({required this.emoji, required this.label, required this.value});
+class _InterestPicker extends StatelessWidget {
+  final List<Map<String, dynamic>> items;
+  final Set<String> selected;
+  final void Function(String) onToggle;
+
+  const _InterestPicker(
+      {required this.items, required this.selected, required this.onToggle});
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 12),
-    child: Row(children: [
-      Text(emoji, style: const TextStyle(fontSize: 20)),
-      const SizedBox(width: 12),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: const TextStyle(fontFamily: 'Nunito',
-          fontSize: 13, fontWeight: FontWeight.w700)),
-        Text(value, style: const TextStyle(fontFamily: 'Nunito',
-          fontSize: 12, color: AppColors.primary)),
-      ])),
-    ]));
+  Widget build(BuildContext context) {
+    // Group by category
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final i in items) {
+      final cat = i['category']?.toString() ?? 'Other';
+      grouped.putIfAbsent(cat, () => []).add(i);
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: grouped.entries.map((e) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Text(e.key.toUpperCase(),
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF888AAA),
+                      letterSpacing: 1)),
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: e.value.map((item) {
+                final id = item['id']?.toString() ?? '';
+                final isSelected = selected.contains(id);
+                return GestureDetector(
+                  onTap: () => onToggle(id),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFF5B4FE9)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: isSelected
+                              ? const Color(0xFF5B4FE9)
+                              : Colors.grey.shade300),
+                    ),
+                    child: Text(
+                      item['name'] ?? '',
+                      style: TextStyle(
+                          color: isSelected
+                              ? Colors.white
+                              : const Color(0xFF1A1A2E),
+                          fontSize: 13),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 4),
+          ],
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _TraitPicker extends StatelessWidget {
+  final List<Map<String, dynamic>> items;
+  final Set<String> selected;
+  final void Function(String) onToggle;
+
+  const _TraitPicker(
+      {required this.items, required this.selected, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final t in items) {
+      final cat = t['category']?.toString() ?? 'Other';
+      grouped.putIfAbsent(cat, () => []).add(t);
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: grouped.entries.map((e) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Text(e.key.toUpperCase(),
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF888AAA),
+                      letterSpacing: 1)),
+            ),
+            ...e.value.map((item) {
+              final id = item['id']?.toString() ?? '';
+              final isSelected = selected.contains(id);
+              return GestureDetector(
+                onTap: () => onToggle(id),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFFEEECFF)
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: isSelected
+                            ? const Color(0xFF5B4FE9)
+                            : Colors.grey.shade200,
+                        width: isSelected ? 1.5 : 1),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item['name'] ?? '',
+                          style: TextStyle(
+                              color: isSelected
+                                  ? const Color(0xFF5B4FE9)
+                                  : const Color(0xFF1A1A2E),
+                              fontSize: 14),
+                        ),
+                      ),
+                      if (isSelected)
+                        const Icon(Icons.check_circle,
+                            color: Color(0xFF5B4FE9), size: 20),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ─── Reusable widgets ─────────────────────────────────────────────────────────
+
+class _SectionCard extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final Widget? trailing;
+
+  const _SectionCard(
+      {required this.title, required this.child, this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Color(0xFF1A1A2E))),
+                const Spacer(),
+                if (trailing != null) trailing!,
+              ],
+            ),
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _DetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(label,
+                style: const TextStyle(
+                    color: Color(0xFF888AAA), fontSize: 13)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(
+                    color: Color(0xFF1A1A2E), fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubHeading extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _SubHeading({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: const Color(0xFF5B4FE9)),
+        const SizedBox(width: 6),
+        Text(label,
+            style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: Color(0xFF1A1A2E))),
+      ],
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  final String label;
+  const _Chip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEEECFF),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(label,
+          style: const TextStyle(
+              color: Color(0xFF5B4FE9), fontSize: 12)),
+    );
+  }
+}
+
+class _SettingsTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color? color;
+
+  const _SettingsTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? const Color(0xFF1A1A2E);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, color: c, size: 20),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(color: c, fontSize: 14)),
+            ),
+            Icon(Icons.chevron_right,
+                color: c.withOpacity(0.4), size: 18),
+          ],
+        ),
+      ),
+    );
+  }
 }
