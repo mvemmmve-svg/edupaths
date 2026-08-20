@@ -4,14 +4,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 final _supabase = Supabase.instance.client;
 
-class RoadmapScreen extends StatefulWidget {
+class RoadmapPlanScreen extends StatefulWidget {
   const RoadmapScreen({super.key});
 
   @override
-  State<RoadmapScreen> createState() => _RoadmapScreenState();
+  State<RoadmapPlanScreen> createState() => _RoadmapPlanScreenState();
 }
 
-class _RoadmapScreenState extends State<RoadmapScreen> {
+class _RoadmapPlanScreenState extends State<RoadmapPlanScreen> {
   bool _loading = true;
   Map<String, dynamic>? _topCareer;
   List<Map<String, dynamic>> _roadmapSteps = [];
