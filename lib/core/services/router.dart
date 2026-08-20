@@ -178,7 +178,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: AppConstants.routeExplore,
               builder: (c, s) => const ExploreScreen()),
           GoRoute(path: AppConstants.routeRoadmap,
-              builder: (c, s) => const RoadmapScreen()),
+              builder: (c, s) => const RoadmapPlanScreen()),
           GoRoute(path: AppConstants.routeSaved,
               builder: (c, s) => const SavedScreen()),
           GoRoute(path: AppConstants.routeEduBot,
