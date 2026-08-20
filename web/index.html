@@ -3,72 +3,50 @@
 <head>
   <!--
     EduPaths — web/index.html
-    Cache busting: every asset URL has ?v=BUILD_VERSION appended.
-    Netlify replaces BUILD_VERSION at deploy time via _headers + the service worker.
-    Saved passwords/usernames are stored in the browser's credential manager
-    (not in the service worker cache), so they are never affected by cache clears.
+    
+    CACHE BUSTING: The number after ?v= below must be incremented each time
+    you deploy. Just add 1 to it. e.g. 1001 → 1002 → 1003
+    This forces all browsers worldwide to fetch the latest version.
+    Saved passwords live in the browser's credential manager — never affected.
+    
+    Current version: 1001  ← change this number on every deploy
   -->
   <base href="/">
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="EduPaths — Compare university and apprenticeship pathways for UK students. Entry requirements, costs, pay and how to apply.">
-
-  <!-- PWA / iOS -->
+  <meta name="description" content="EduPaths — Compare university and apprenticeship pathways for UK students.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="EduPaths">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
-
   <meta name="theme-color" content="#5B4FE9">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EduPaths — Discover Your Future Career</title>
   <link rel="manifest" href="manifest.json">
-
-  <!-- 
-    CACHE BUSTING STRATEGY:
-    We append ?v=EPOCHTIME to flutter.js and main.dart.js so browsers
-    always fetch the latest version after a deploy.
-    
-    The epoch timestamp below is replaced by a Netlify build plugin
-    (see netlify.toml). If you don't have the plugin set up yet,
-    manually increment the number after ?v= each time you deploy.
-    
-    Current version: update this number on every deploy.
-    Format: Unix timestamp or any incrementing integer.
-    e.g. 20260820001 → 20260820002 on next deploy
-  -->
-  <script>
-    // Expose build version globally so the service worker can use it
-    window.EDUPATHS_BUILD_VERSION = '%%EDUPATHS_BUILD_VERSION%%';
-  </script>
 </head>
 <body>
   <script>
-    // ---------------------------------------------------------------------------
-    // Service Worker registration
-    // Uses our custom service worker that does network-first (always fresh).
-    // Saved passwords live in the browser's credential manager — completely
-    // separate from the service worker cache — so they are never touched.
-    // ---------------------------------------------------------------------------
+    // ── Service Worker ────────────────────────────────────────────────────────
+    // Registers with a version query string so browsers always pick up updates.
+    // Saved passwords are stored in the browser's credential manager (separate
+    // from this cache) — they are never touched by service worker updates.
+    var BUILD_VERSION = '1001'; // ← keep in sync with the number in the comment above
+
     if ('serviceWorker' in navigator) {
-      // Force-update the service worker on every page load
       navigator.serviceWorker.register(
-        'flutter_service_worker.js?v=%%EDUPATHS_BUILD_VERSION%%',
+        'flutter_service_worker.js?v=' + BUILD_VERSION,
         { scope: '/' }
       ).then(function(reg) {
-        // If there's a new worker waiting, activate it immediately
+        // Activate any waiting worker immediately
         if (reg.waiting) {
           reg.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
         reg.addEventListener('updatefound', function() {
-          const newWorker = reg.installing;
+          var newWorker = reg.installing;
           if (newWorker) {
             newWorker.addEventListener('statechange', function() {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // New version available — activate immediately without waiting
                 newWorker.postMessage({ type: 'SKIP_WAITING' });
               }
             });
@@ -76,8 +54,8 @@
         });
       });
 
-      // When the new service worker takes control, reload once to get fresh assets
-      let refreshing = false;
+      // When new service worker takes control, reload once to get fresh assets
+      var refreshing = false;
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (!refreshing) {
           refreshing = true;
@@ -88,17 +66,17 @@
   </script>
 
   <script>
-    // ---------------------------------------------------------------------------
-    // Flutter bootstrap — loads flutter.js with cache-bust version
-    // ---------------------------------------------------------------------------
+    // ── Flutter bootstrap ─────────────────────────────────────────────────────
+    var BUILD_VERSION = '1001'; // ← same number as above
+
     window.addEventListener('load', function() {
       var script = document.createElement('script');
-      script.src = 'flutter.js?v=%%EDUPATHS_BUILD_VERSION%%';
+      script.src = 'flutter.js?v=' + BUILD_VERSION;
       script.defer = true;
       script.onload = function() {
         _flutter.loader.loadEntrypoint({
           serviceWorker: {
-            serviceWorkerVersion: '%%EDUPATHS_BUILD_VERSION%%',
+            serviceWorkerVersion: BUILD_VERSION,
           },
           onEntrypointLoaded: async function(engineInitializer) {
             let appRunner = await engineInitializer.initializeEngine();
