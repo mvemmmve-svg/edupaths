@@ -1,27 +1,12 @@
-# netlify.toml — place in the ROOT of your GitHub repo (same level as pubspec.yaml)
+# netlify.toml — place in root of repo (same level as pubspec.yaml)
 #
-# This does two things:
-# 1. Runs a tiny sed command during build that replaces %%EDUPATHS_BUILD_VERSION%%
-#    in index.html with the current Unix timestamp — so every deploy gets a fresh
-#    version number automatically. No manual editing ever needed.
+# No build command needed — you upload pre-built files directly to GitHub.
+# Netlify just serves them. These headers handle cache busting automatically.
 #
-# 2. Sets HTTP headers so browsers NEVER cache index.html or the service worker,
-#    but DO cache all other assets (fonts, images, compiled JS) for 1 year with
-#    immutable — which is safe because those files have hashed filenames.
-#
-# Saved passwords: stored in browser's built-in credential manager (keychain),
-# completely separate from HTTP cache — totally unaffected by any of this.
-
-[build]
-  command = "sed -i \"s/%%EDUPATHS_BUILD_VERSION%%/$(date +%s)/g\" build/web/index.html && sed -i \"s/%%EDUPATHS_BUILD_VERSION%%/$(date +%s)/g\" build/web/flutter_service_worker.js"
-  publish = "build/web"
-
-# If your repo already has a flutter build step, add it before the sed:
-# command = "flutter build web && sed -i ..."
-# But since you upload built files directly to GitHub, the sed alone is enough.
+# index.html and service worker: never cached → always fresh for every user
+# All other assets: cached for 1 year (safe — Flutter gives them hashed names)
 
 [[headers]]
-  # Never cache index.html — always fetch from network
   for = "/index.html"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
@@ -29,20 +14,16 @@
     Expires = "0"
 
 [[headers]]
-  # Never cache the service worker — must always be fresh
   for = "/flutter_service_worker.js"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
 
 [[headers]]
-  # Never cache manifest (so PWA metadata stays current)
   for = "/manifest.json"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
 
 [[headers]]
-  # Cache all compiled assets (main.dart.js, canvaskit, fonts, icons) for 1 year
-  # Safe because Flutter gives these files content-hashed names — new deploy = new filename
   for = "/main.dart.js"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
