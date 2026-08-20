@@ -1,117 +1,113 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <base href="$FLUTTER_BASE_HREF">
+  <!--
+    EduPaths — web/index.html
+    Cache busting: every asset URL has ?v=BUILD_VERSION appended.
+    Netlify replaces BUILD_VERSION at deploy time via _headers + the service worker.
+    Saved passwords/usernames are stored in the browser's credential manager
+    (not in the service worker cache), so they are never affected by cache clears.
+  -->
+  <base href="/">
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="EduPaths — Compare university and apprenticeship pathways for UK students. Entry requirements, costs, pay and how to apply.">
+
+  <!-- PWA / iOS -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="EduPaths">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
   <meta name="theme-color" content="#5B4FE9">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
-  <link rel="icon" type="image/png" href="favicon.png"/>
   <title>EduPaths — Discover Your Future Career</title>
   <link rel="manifest" href="manifest.json">
-  <noscript>
-    <style>body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f8f9ff;text-align:center;}</style>
-    <div><h2 style="color:#2E3B7C">EduPaths requires JavaScript</h2><p>Please enable JavaScript in your browser to use EduPaths.</p></div>
-  </noscript>
-  <style>
-    *{box-sizing:border-box;}
-    body{margin:0;background:#f8f9ff;font-family:Arial,sans-serif;}
-    #loading{
-      position:fixed;top:0;left:0;right:0;bottom:0;
-      display:flex;flex-direction:column;align-items:center;justify-content:center;
-      background:#f8f9ff;z-index:9999;
-    }
-    .logo{position:fixed;left:0;top:0;font-size:34px;font-weight:900;color:#5B4FE9;
-      letter-spacing:-1px;will-change:transform;user-select:none;}
-    .logo span{color:#F2B33D;}
-    @media (prefers-reduced-motion: reduce){.logo{position:static;}}
-    #slow-msg{
-      display:none;margin-top:16px;padding:16px 20px;
-      background:#fff;border-radius:12px;border:2px solid #E8E5FF;
-      text-align:center;max-width:300px;
-    }
-    #slow-msg p{margin:0 0 12px;color:#64748B;font-size:14px;}
-    #slow-msg button{
-      background:#5B4FE9;color:#fff;border:none;padding:10px 24px;
-      border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;
-    }
-  </style>
+
+  <!-- 
+    CACHE BUSTING STRATEGY:
+    We append ?v=EPOCHTIME to flutter.js and main.dart.js so browsers
+    always fetch the latest version after a deploy.
+    
+    The epoch timestamp below is replaced by a Netlify build plugin
+    (see netlify.toml). If you don't have the plugin set up yet,
+    manually increment the number after ?v= each time you deploy.
+    
+    Current version: update this number on every deploy.
+    Format: Unix timestamp or any incrementing integer.
+    e.g. 20260820001 → 20260820002 on next deploy
+  -->
+  <script>
+    // Expose build version globally so the service worker can use it
+    window.EDUPATHS_BUILD_VERSION = '%%EDUPATHS_BUILD_VERSION%%';
+  </script>
 </head>
 <body>
-  <div id="loading" role="status" aria-label="Loading EduPaths">
-    <div class="logo" id="bounce-logo">Edu<span>Paths</span></div>
-    <script>
-      // DVD-style bounce: the logo drifts and rebounds off the screen edges
-      // while Flutter loads (respects reduced-motion preferences).
-      (function () {
-        var el = document.getElementById('bounce-logo');
-        if (!el || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        var x = 40, y = 80, dx = 2.2, dy = 1.8, raf;
-        function step() {
-          var w = innerWidth - el.offsetWidth, h = innerHeight - el.offsetHeight;
-          x += dx; y += dy;
-          if (x <= 0 || x >= w) { dx = -dx; x = Math.max(0, Math.min(x, w)); }
-          if (y <= 0 || y >= h) { dy = -dy; y = Math.max(0, Math.min(y, h)); }
-          el.style.transform = 'translate(' + x + 'px,' + y + 'px)';
-          raf = requestAnimationFrame(step);
+  <script>
+    // ---------------------------------------------------------------------------
+    // Service Worker registration
+    // Uses our custom service worker that does network-first (always fresh).
+    // Saved passwords live in the browser's credential manager — completely
+    // separate from the service worker cache — so they are never touched.
+    // ---------------------------------------------------------------------------
+    if ('serviceWorker' in navigator) {
+      // Force-update the service worker on every page load
+      navigator.serviceWorker.register(
+        'flutter_service_worker.js?v=%%EDUPATHS_BUILD_VERSION%%',
+        { scope: '/' }
+      ).then(function(reg) {
+        // If there's a new worker waiting, activate it immediately
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
-        raf = requestAnimationFrame(step);
-        addEventListener('flutter-first-frame', function () { cancelAnimationFrame(raf); });
-      })();
-    </script>
-    <div id="slow-msg">
-      <p>Taking longer than usual…</p>
-      <button onclick="location.reload()">Retry</button>
-    </div>
-  </div>
+        reg.addEventListener('updatefound', function() {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', function() {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // New version available — activate immediately without waiting
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+              }
+            });
+          }
+        });
+      });
+
+      // When the new service worker takes control, reload once to get fresh assets
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function() {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+    }
+  </script>
 
   <script>
-    // ---- Shell hardening (spec F5 + A3) ----
-    // CORRECTION vs. previous draft: the loader was hidden on script *download*
-    // (s.onload), which fires long before Flutter paints anything — users got a
-    // blank white screen while the engine initialised, and the 10s escape
-    // hatch was disarmed too early. Flutter dispatches 'flutter-first-frame'
-    // on window when the app actually renders; that is the correct signal.
-
-    var escapeTimer = setTimeout(function () {
-      var m = document.getElementById('slow-msg');
-      if (m) m.style.display = 'block';
-    }, 10000);
-
-    function hideLoading() {
-      clearTimeout(escapeTimer);
-      var l = document.getElementById('loading');
-      if (l) {
-        l.style.transition = 'opacity 0.3s';
-        l.style.opacity = '0';
-        setTimeout(function () { l.remove(); }, 300);
-      }
-    }
-
-    function showFatal() {
-      clearTimeout(escapeTimer);
-      document.body.innerHTML =
-        '<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;font-family:Arial;text-align:center;padding:24px">' +
-        '<h2 style="color:#2E3B7C;margin:0 0 8px">Could not load EduPaths</h2>' +
-        '<p style="color:#64748B;margin:0 0 20px">Check your connection and try again.</p>' +
-        '<button onclick="location.reload()" style="background:#5B4FE9;color:white;border:none;padding:12px 28px;border-radius:8px;font-size:16px;cursor:pointer">Retry</button>' +
-        '</div>';
-    }
-
-    // Hide the shell only when Flutter paints its first frame.
-    window.addEventListener('flutter-first-frame', hideLoading);
-
-    // Flutter 3.22+ single-entrypoint bootstrap (generated at build time).
-    var s = document.createElement('script');
-    s.src = 'flutter_bootstrap.js';
-    s.async = true;
-    s.onerror = showFatal;
-    document.body.appendChild(s);
+    // ---------------------------------------------------------------------------
+    // Flutter bootstrap — loads flutter.js with cache-bust version
+    // ---------------------------------------------------------------------------
+    window.addEventListener('load', function() {
+      var script = document.createElement('script');
+      script.src = 'flutter.js?v=%%EDUPATHS_BUILD_VERSION%%';
+      script.defer = true;
+      script.onload = function() {
+        _flutter.loader.loadEntrypoint({
+          serviceWorker: {
+            serviceWorkerVersion: '%%EDUPATHS_BUILD_VERSION%%',
+          },
+          onEntrypointLoaded: async function(engineInitializer) {
+            let appRunner = await engineInitializer.initializeEngine();
+            await appRunner.runApp();
+          }
+        });
+      };
+      document.body.appendChild(script);
+    });
   </script>
 </body>
 </html>
