@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 final _supabase = Supabase.instance.client;
 
 class RoadmapPlanScreen extends StatefulWidget {
-  const RoadmapScreen({super.key});
+  const RoadmapPlanScreen({super.key});
 
   @override
   State<RoadmapPlanScreen> createState() => _RoadmapPlanScreenState();
