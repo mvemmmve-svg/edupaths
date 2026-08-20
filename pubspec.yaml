@@ -10,14 +10,9 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Required for usePathUrlStrategy() — without it Flutter web uses /#/ hash
-  # URLs, and with it clean paths need the Netlify SPA rewrite. See
-  # lib/core/router/app_router.dart.
   flutter_web_plugins:
     sdk: flutter
 
-  # Provides Nunito and all other fonts used throughout the app.
-  # All fontFamily: 'Nunito' references in the code use this package.
   google_fonts: ^6.1.0
 
   url_launcher: ^6.2.5
