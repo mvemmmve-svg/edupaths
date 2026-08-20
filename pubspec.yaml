@@ -9,11 +9,17 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
   # Required for usePathUrlStrategy() — without it Flutter web uses /#/ hash
-  # URLs, and with it clean paths need the Netlify SPA rewrite (F1). See
+  # URLs, and with it clean paths need the Netlify SPA rewrite. See
   # lib/core/router/app_router.dart.
   flutter_web_plugins:
     sdk: flutter
+
+  # Provides Nunito and all other fonts used throughout the app.
+  # All fontFamily: 'Nunito' references in the code use this package.
+  google_fonts: ^6.1.0
+
   url_launcher: ^6.2.5
   http: ^1.2.0
   supabase_flutter: 1.10.25
@@ -35,20 +41,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
-  # CORRECTION: the previous theme set fontFamily 'Nunito' but neither bundled
-  # the font nor depended on google_fonts, so it silently fell back to Roboto.
-  # On Flutter web (CanvasKit) fonts loaded via CSS <link> are NOT used by the
-  # renderer — fonts must be bundled here. Download the TTFs from
-  # fonts.google.com into assets/fonts/ (Nunito for UI, IBM Plex Mono for the
-  # data chips per spec A1/A4).
-
-  # Fonts are fetched by the Netlify build command into assets/fonts/
-  # (Nunito variable font covers all weights; IBM Plex Mono for data chips)
-  fonts:
-    - family: Nunito
-      fonts:
-        - asset: assets/fonts/Nunito.ttf
-    - family: IBMPlexMono
-      fonts:
-        - asset: assets/fonts/IBMPlexMono-Regular.ttf
