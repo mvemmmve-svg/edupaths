@@ -16,6 +16,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<Map<String, dynamic>> _interests = [];
   List<Map<String, dynamic>> _traits = [];
   bool _loading = true;
+  bool _isAdvisor = false; // only show school advisor portal for actual advisors
 
   @override
   void initState() {
@@ -50,8 +51,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .select('trait(name)')
           .eq('user_id', userId);
 
+      // Check if user is a school advisor
+      final advisorRes = await _supabase
+          .from('school_advisors')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle();
+
       setState(() {
         _user = userRes;
+        _isAdvisor = advisorRes != null;
         _interests = (interestRes as List)
             .map((r) => r['interests'] as Map<String, dynamic>? ?? {})
             .where((i) => i.isNotEmpty)
@@ -329,11 +338,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   label: 'Join your school',
                   onTap: () => context.push('/join-school'),
                 ),
-                _SettingsTile(
-                  icon: Icons.admin_panel_settings_outlined,
-                  label: 'School advisor portal',
-                  onTap: () => context.push('/school-advisor'),
-                ),
+                if (_isAdvisor)
+                  _SettingsTile(
+                    icon: Icons.admin_panel_settings_outlined,
+                    label: 'School advisor portal',
+                    onTap: () => context.push('/school-advisor'),
+                  ),
                 if (isAdmin)
                   _SettingsTile(
                     icon: Icons.admin_panel_settings_outlined,
