@@ -103,7 +103,14 @@ class _ParentDashState extends ConsumerState<ParentDashboardScreen>
       appBar: AppBar(
         title: const Text('Parent Dashboard 👨‍👩‍👧'),
         leading: GestureDetector(
-          onTap: () => context.go('/home'), child: const BackBtn()),
+          onTap: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
+          child: const BackBtn()),
         actions: [
           IconButton(
             icon: const Icon(Icons.home_rounded),
