@@ -1,7 +1,4 @@
 // lib/features/explore/screens/explore_screen.dart
-// Added: Qualifications as third tab (GCSE, A-Level, BTEC, T-Level)
-// Careers sorted alphabetically, courses split by type
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,8 +12,9 @@ final _selectedCategoryProvider = StateProvider<String?>((ref) => null);
 final _selectedCareerCatProvider = StateProvider<String?>((ref) => null);
 final _courseTypeProvider = StateProvider<String>((ref) => 'All');
 final _qualTypeProvider = StateProvider<String>((ref) => 'All');
+// FIXED #9: location filter provider
+final _locationProvider = StateProvider<String?>((ref) => null);
 
-// Qualifications provider
 final _qualsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final res = await Supabase.instance.client
       .from('preclass')
@@ -66,6 +64,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
     final selectedCareerCat = ref.watch(_selectedCareerCatProvider);
     final courseType = ref.watch(_courseTypeProvider);
     final qualType = ref.watch(_qualTypeProvider);
+    final selectedLocation = ref.watch(_locationProvider); // FIXED #9
 
     final allCourseCats = coursesAsync.valueOrNull != null
         ? (coursesAsync.value!.map((c) => c.category ?? 'Other').toSet().toList()..sort())
@@ -75,7 +74,17 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
         ? (careersAsync.value!.map((c) => c.category ?? 'Other').toSet().toList()..sort())
         : <String>[];
 
-    // Filter courses
+    // FIXED #9: collect unique locations from courses (excluding null/empty)
+    final allLocations = coursesAsync.valueOrNull != null
+        ? (coursesAsync.value!
+            .map((c) => c.location)
+            .where((l) => l != null && l.isNotEmpty)
+            .cast<String>()
+            .toSet()
+            .toList()..sort())
+        : <String>[];
+
+    // Filter courses — now includes location filter
     final filteredCourses = coursesAsync.valueOrNull?.where((c) {
       final matchCat = selectedCourseCat == null || c.category == selectedCourseCat;
       final matchType = courseType == 'All' ||
@@ -84,7 +93,10 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
       final matchQ = query.isEmpty ||
           c.trimmed.toLowerCase().contains(query.toLowerCase()) ||
           (c.institution?.trimmed.toLowerCase().contains(query.toLowerCase()) ?? false);
-      return matchCat && matchType && matchQ;
+      // FIXED #9: location filter
+      final matchLocation = selectedLocation == null ||
+          (c.location?.toLowerCase().contains(selectedLocation.toLowerCase()) ?? false);
+      return matchCat && matchType && matchQ && matchLocation;
     }).toList() ?? [];
 
     final groupedCourses = <String, List<Course>>{};
@@ -96,7 +108,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
     }
     final sortedCourseCats = groupedCourses.keys.toList()..sort();
 
-    // Filter careers - alphabetical
+    // Filter careers
     final filteredCareers = careersAsync.valueOrNull?.where((c) {
       final matchCat = selectedCareerCat == null || c.category == selectedCareerCat;
       final matchQ = query.isEmpty ||
@@ -126,7 +138,6 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
     return Scaffold(
       backgroundColor: AppColors.bgPage,
       body: SafeArea(child: Column(children: [
-        // Header + Search
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -154,7 +165,6 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
           ]),
         ),
 
-        // Tabs — now 3
         TabBar(
           controller: _tabs,
           labelColor: AppColors.primary,
@@ -238,8 +248,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
             )),
           ]),
 
-          // ── COURSES TAB ───────────────────────────────────────────────
+          // ── COURSES TAB — FIXED #9: location filter added ─────────────
           Column(children: [
+            // Type filter row
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
               child: Row(children: [
@@ -266,6 +277,74 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
                     )),
               ]),
             ),
+
+            // FIXED #9: Location filter row
+            if (allLocations.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: Row(children: [
+                  const Icon(Icons.location_on_outlined,
+                      size: 16, color: AppColors.textLight),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: SizedBox(
+                      height: 36,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: allLocations.length + 1,
+                        separatorBuilder: (_, __) => const SizedBox(width: 6),
+                        itemBuilder: (_, i) {
+                          if (i == 0) {
+                            return GestureDetector(
+                              onTap: () =>
+                                  ref.read(_locationProvider.notifier).state = null,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: selectedLocation == null
+                                      ? AppColors.primary : AppColors.bgCard,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                      color: selectedLocation == null
+                                          ? AppColors.primary : AppColors.border)),
+                                child: Text('Anywhere',
+                                    style: TextStyle(
+                                        fontFamily: 'Nunito', fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: selectedLocation == null
+                                            ? Colors.white : AppColors.textMid)),
+                              ));
+                          }
+                          final loc = allLocations[i - 1];
+                          final sel = selectedLocation == loc;
+                          return GestureDetector(
+                            onTap: () => ref.read(_locationProvider.notifier).state =
+                                sel ? null : loc,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: sel ? AppColors.primary : AppColors.bgCard,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                    color: sel ? AppColors.primary : AppColors.border)),
+                              child: Text(loc,
+                                  style: TextStyle(
+                                      fontFamily: 'Nunito', fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: sel ? Colors.white : AppColors.textMid)),
+                            ));
+                        },
+                      ),
+                    ),
+                  ),
+                ]),
+              ),
+
+            // Category filter
             if (allCourseCats.isNotEmpty)
               SizedBox(height: 46,
                 child: ListView.separated(
@@ -276,30 +355,60 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
                   itemBuilder: (_, i) {
                     if (i == 0) return _CatChip(label: 'All',
                         selected: selectedCourseCat == null,
-                        onTap: () => ref.read(_selectedCategoryProvider.notifier).state = null);
+                        onTap: () =>
+                            ref.read(_selectedCategoryProvider.notifier).state = null);
                     final cat = allCourseCats[i - 1];
                     final sel = selectedCourseCat == cat;
                     return _CatChip(label: cat, selected: sel,
-                        onTap: () => ref.read(_selectedCategoryProvider.notifier).state =
-                            sel ? null : cat);
+                        onTap: () => ref
+                            .read(_selectedCategoryProvider.notifier)
+                            .state = sel ? null : cat);
                   },
                 )),
+
+            // Count + active location indicator
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Row(children: [
                 Text('${filteredCourses.length} course${filteredCourses.length != 1 ? 's' : ''}',
                     style: const TextStyle(fontFamily: 'Nunito', fontSize: 12,
                         color: AppColors.textLight)),
+                if (selectedLocation != null) ...[
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () =>
+                        ref.read(_locationProvider.notifier).state = null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryPale,
+                        borderRadius: BorderRadius.circular(10)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text('📍 $selectedLocation',
+                            style: const TextStyle(fontFamily: 'Nunito',
+                                fontSize: 11, fontWeight: FontWeight.w700,
+                                color: AppColors.primaryDark)),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.close, size: 12, color: AppColors.primaryDark),
+                      ]),
+                    )),
+                ],
               ]),
             ),
+
             Expanded(child: coursesAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => ErrorView(message: e.toString()),
               data: (_) => groupedCourses.isEmpty
                   ? EmptyState(
-                      emoji: courseType == 'University' ? '🎓' : courseType == 'Apprenticeship' ? '🔧' : '📚',
-                      title: 'No courses found',
-                      subtitle: 'Try a different filter or search')
+                      emoji: courseType == 'University'
+                          ? '🎓' : courseType == 'Apprenticeship' ? '🔧' : '📚',
+                      title: selectedLocation != null
+                          ? 'No courses in $selectedLocation'
+                          : 'No courses found',
+                      subtitle: selectedLocation != null
+                          ? 'Try a different location or remove the filter'
+                          : 'Try a different filter or search')
                   : ListView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
                       itemCount: sortedCourseCats.length,
@@ -318,33 +427,60 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Row(children: [
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
                                       color: c.isApprenticeship
-                                          ? const Color(0xFFEFF6FF) : const Color(0xFFF5F3FF),
+                                          ? const Color(0xFFEFF6FF)
+                                          : const Color(0xFFF5F3FF),
                                       borderRadius: BorderRadius.circular(6)),
                                     child: Text(
-                                      c.isApprenticeship ? '🔧 Apprenticeship' : '🎓 University',
+                                      c.isApprenticeship
+                                          ? '🔧 Apprenticeship' : '🎓 University',
                                       style: TextStyle(fontFamily: 'Nunito', fontSize: 10,
                                           fontWeight: FontWeight.w700,
                                           color: c.isApprenticeship
-                                              ? const Color(0xFF1D4ED8) : const Color(0xFF6C63FF)))),
+                                              ? const Color(0xFF1D4ED8)
+                                              : const Color(0xFF6C63FF)))),
+                                  // FIXED #9: show location badge if present
+                                  if (c.location != null && c.location!.isNotEmpty) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.bgGrey,
+                                        borderRadius: BorderRadius.circular(6)),
+                                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                        const Icon(Icons.location_on_outlined,
+                                            size: 10, color: AppColors.textLight),
+                                        const SizedBox(width: 2),
+                                        Text(c.location!,
+                                            style: const TextStyle(
+                                                fontFamily: 'Nunito', fontSize: 10,
+                                                color: AppColors.textMid)),
+                                      ])),
+                                  ],
                                 ]),
                                 const SizedBox(height: 6),
                                 Text(c.trimmed, style: const TextStyle(
-                                    fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w800)),
+                                    fontFamily: 'Nunito', fontSize: 13,
+                                    fontWeight: FontWeight.w800)),
                                 if (c.institution != null) ...[
                                   const SizedBox(height: 3),
                                   Text(c.institution!.trimmed, style: const TextStyle(
-                                      fontFamily: 'Nunito', fontSize: 12, color: AppColors.textMid)),
+                                      fontFamily: 'Nunito', fontSize: 12,
+                                      color: AppColors.textMid)),
                                 ],
                                 if (c.duration != null) ...[
                                   const SizedBox(height: 4),
                                   Row(children: [
-                                    const Icon(Icons.schedule_outlined, size: 12, color: AppColors.textLight),
+                                    const Icon(Icons.schedule_outlined,
+                                        size: 12, color: AppColors.textLight),
                                     const SizedBox(width: 4),
                                     Text(c.duration!, style: const TextStyle(
-                                        fontFamily: 'Nunito', fontSize: 11, color: AppColors.textMid)),
+                                        fontFamily: 'Nunito', fontSize: 11,
+                                        color: AppColors.textMid)),
                                   ]),
                                 ],
                               ]),
@@ -356,7 +492,6 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
 
           // ── QUALIFICATIONS TAB ────────────────────────────────────────
           Column(children: [
-            // Type filter
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
               child: SingleChildScrollView(
@@ -382,8 +517,6 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
                 ]),
               ),
             ),
-
-            // Info banner
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Container(
@@ -401,22 +534,22 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
                 ]),
               ),
             ),
-
             Expanded(child: qualsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => ErrorView(message: e.toString()),
               data: (_) {
                 if (filteredQuals.isEmpty) {
-                  return const EmptyState(emoji: '📚', title: 'No qualifications found',
+                  return const EmptyState(emoji: '📚',
+                      title: 'No qualifications found',
                       subtitle: 'Try adjusting your filters or search');
                 }
-                // Group by type
                 final grouped = <String, List<Map<String, dynamic>>>{};
                 for (final q in filteredQuals) {
                   grouped.putIfAbsent(q['type'] as String, () => []).add(q);
                 }
                 final types = grouped.keys.toList()
-                  ..sort((a, b) => qualTypes.indexOf(a).compareTo(qualTypes.indexOf(b)));
+                  ..sort((a, b) =>
+                      qualTypes.indexOf(a).compareTo(qualTypes.indexOf(b)));
 
                 return ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
@@ -501,8 +634,10 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _QualDetailSheet(qualId: qual['id'] as String,
-          qualTitle: qual['title'] as String, qualType: qual['type'] as String));
+      builder: (_) => _QualDetailSheet(
+          qualId: qual['id'] as String,
+          qualTitle: qual['title'] as String,
+          qualType: qual['type'] as String));
   }
 }
 
@@ -510,7 +645,8 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
 
 class _QualDetailSheet extends StatefulWidget {
   final String qualId, qualTitle, qualType;
-  const _QualDetailSheet({required this.qualId, required this.qualTitle, required this.qualType});
+  const _QualDetailSheet({
+      required this.qualId, required this.qualTitle, required this.qualType});
   @override
   State<_QualDetailSheet> createState() => _QualDetailSheetState();
 }
@@ -532,7 +668,7 @@ class _QualDetailSheetState extends State<_QualDetailSheet> {
       if (ids.isEmpty) { setState(() => _loading = false); return; }
       final courses = await Supabase.instance.client
           .from('courses')
-          .select('id, title, course_type, category, duration')
+          .select('id, title, course_type, category, duration, location')
           .in_('id', ids)
           .order('title');
       setState(() {
@@ -560,12 +696,10 @@ class _QualDetailSheetState extends State<_QualDetailSheet> {
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
         child: Column(children: [
-          // Handle
           Container(margin: const EdgeInsets.only(top: 12, bottom: 8),
             width: 40, height: 4,
             decoration: BoxDecoration(color: AppColors.border,
                 borderRadius: BorderRadius.circular(2))),
-          // Header
           Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
             child: Row(children: [
               Container(
@@ -582,7 +716,6 @@ class _QualDetailSheetState extends State<_QualDetailSheet> {
                     fontSize: 17, fontWeight: FontWeight.w900))),
             ])),
           const Divider(height: 1),
-          // Courses
           Expanded(child: _loading
               ? const Center(child: CircularProgressIndicator())
               : _courses.isEmpty
@@ -603,6 +736,7 @@ class _QualDetailSheetState extends State<_QualDetailSheet> {
                                 color: AppColors.textMid)));
                         final c = _courses[i - 1];
                         final isApp = (c['course_type'] as String?) == 'Apprenticeship';
+                        final loc = c['location'] as String?;
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: EduCard(
@@ -612,9 +746,12 @@ class _QualDetailSheetState extends State<_QualDetailSheet> {
                             },
                             child: Row(children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: isApp ? const Color(0xFFEFF6FF) : const Color(0xFFF5F3FF),
+                                  color: isApp
+                                      ? const Color(0xFFEFF6FF)
+                                      : const Color(0xFFF5F3FF),
                                   borderRadius: BorderRadius.circular(6)),
                                 child: Text(isApp ? '🔧' : '🎓',
                                     style: const TextStyle(fontSize: 12))),
@@ -628,6 +765,16 @@ class _QualDetailSheetState extends State<_QualDetailSheet> {
                                   Text(c['duration'] as String, style: const TextStyle(
                                       fontFamily: 'Nunito', fontSize: 11,
                                       color: AppColors.textMid)),
+                                // Location shown in qual detail too
+                                if (loc != null && loc.isNotEmpty)
+                                  Row(children: [
+                                    const Icon(Icons.location_on_outlined,
+                                        size: 11, color: AppColors.textLight),
+                                    const SizedBox(width: 2),
+                                    Text(loc, style: const TextStyle(
+                                        fontFamily: 'Nunito', fontSize: 11,
+                                        color: AppColors.textMid)),
+                                  ]),
                               ])),
                               const Icon(Icons.chevron_right_rounded,
                                   color: AppColors.textLight, size: 18),
@@ -654,7 +801,8 @@ class _CatChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: selected ? AppColors.primary : AppColors.bgCard,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: selected ? AppColors.primary : AppColors.border,
+        border: Border.all(
+            color: selected ? AppColors.primary : AppColors.border,
             width: selected ? 0 : 1.5)),
       child: Text(label, style: TextStyle(fontFamily: 'Nunito',
           fontSize: 12, fontWeight: FontWeight.w700,
