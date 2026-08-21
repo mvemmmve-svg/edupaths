@@ -1,5 +1,6 @@
 // lib/features/careers/screens/career_screens.dart
 // Issue 3 fix: _CoursesTab now splits into University and Apprenticeship sub-tabs
+// Issue 4 fix: ALL qualifications locked for free users (not just GCSE)
 // Everything else unchanged from original
 
 import 'package:flutter/material.dart';
@@ -164,7 +165,6 @@ class _CareerDetailState extends ConsumerState<CareerDetailScreen>
               ),
             ],
             body: TabBarView(controller: _tabs, children: [
-              // ── Overview tab (unchanged) ───────────────────────────────
               SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [
                 EduCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const Text('About this career', style: TextStyle(
@@ -216,11 +216,7 @@ class _CareerDetailState extends ConsumerState<CareerDetailScreen>
                     Icon(Icons.chevron_right_rounded, color: AppColors.primary),
                   ])),
               ])),
-
-              // ── Skills tab (unchanged) ─────────────────────────────────
               _SkillsTab(careerId: widget.careerId),
-
-              // ── Institutions tab — ISSUE 3 FIX: split into sub-tabs ───
               coursesAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => ErrorView(message: e.toString()),
@@ -250,8 +246,6 @@ class _StatBox extends StatelessWidget {
     ]));
 }
 
-// ── ISSUE 3 FIX: Courses tab with University / Apprenticeship sub-tabs ─────
-
 class _CoursesTab extends StatefulWidget {
   final List<dynamic> courses;
   const _CoursesTab({required this.courses});
@@ -262,33 +256,27 @@ class _CoursesTab extends StatefulWidget {
 class _CoursesTabState extends State<_CoursesTab>
     with SingleTickerProviderStateMixin {
   late TabController _subTabs;
-
   @override
   void initState() {
     super.initState();
     _subTabs = TabController(length: 3, vsync: this);
   }
-
   @override
   void dispose() {
     _subTabs.dispose();
     super.dispose();
   }
-
   @override
   Widget build(BuildContext context) {
     final all = widget.courses;
     final university = all.where((c) => !(c as dynamic).isApprenticeship).toList();
     final apprenticeship = all.where((c) => (c as dynamic).isApprenticeship).toList();
-
     if (all.isEmpty) {
       return const EmptyState(emoji: '🎓',
           title: 'No courses yet',
           subtitle: 'Courses will appear here soon');
     }
-
     return Column(children: [
-      // Sub-tab bar
       Container(
         color: Colors.white,
         child: TabBar(
@@ -306,8 +294,6 @@ class _CoursesTabState extends State<_CoursesTab>
           ],
         ),
       ),
-
-      // Sub-tab content
       Expanded(
         child: TabBarView(
           controller: _subTabs,
@@ -333,7 +319,6 @@ class _CoursesTabState extends State<_CoursesTab>
 class _CourseList extends StatelessWidget {
   final List<dynamic> courses;
   const _CourseList({required this.courses});
-
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
@@ -384,8 +369,6 @@ class _CourseList extends StatelessWidget {
       });
   }
 }
-
-// ── Skills tab (unchanged) ────────────────────────────────────────────────────
 
 final _careerSkillsProvider =
     FutureProvider.family<List<_SkillItem>, String>((ref, careerId) async {
@@ -439,8 +422,6 @@ class _SkillsTab extends ConsumerWidget {
     ]);
   }
 }
-
-// ── Course detail screen (unchanged) ─────────────────────────────────────────
 
 class CourseDetailScreen extends ConsumerWidget {
   final String courseId;
@@ -564,9 +545,6 @@ class _InfoRow extends StatelessWidget {
         fontSize: 13, fontWeight: FontWeight.w700)),
     ]));
 }
-
-// ── AltRoutes, Compare, WhyMatch, CareersByCategory, Roadmap ─────────────────
-// All unchanged from original — copied verbatim
 
 class AltRoutesScreen extends ConsumerWidget {
   final String careerId;
@@ -917,7 +895,8 @@ class _RoadmapSheet extends ConsumerWidget {
                   ...grouped[type]!.map((q) {
                     final isRequired = q['importance'] == 'required';
                     final grade = q['target_grade'] as String?;
-                    final isLocked = !isPremium && type == 'GCSE';
+                    // FIXED #4: lock ALL qualification types for free users, not just GCSE
+                    final isLocked = !isPremium;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: EduCard(
@@ -933,7 +912,7 @@ class _RoadmapSheet extends ConsumerWidget {
                               Row(children: [
                                 const Icon(Icons.lock_rounded, size: 14, color: AppColors.textLight),
                                 const SizedBox(width: 6),
-                                Text(q['title'] as String, style: const TextStyle(fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textLight)),
+                                Expanded(child: Text(q['title'] as String, style: const TextStyle(fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textLight))),
                               ])
                             else ...[
                               Text(q['title'] as String, style: const TextStyle(fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w700)),
@@ -968,8 +947,8 @@ class _RoadmapSheet extends ConsumerWidget {
                       Text('🔒', style: TextStyle(fontSize: 24)),
                       SizedBox(width: 12),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('Unlock Full GCSE Details', style: TextStyle(fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
-                        Text('Upgrade to Premium to see all target grades.', style: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: Colors.white70)),
+                        Text('Unlock Full Pathway Details', style: TextStyle(fontFamily: 'Nunito', fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
+                        Text('Upgrade to Premium to see all qualifications and target grades.', style: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: Colors.white70)),
                       ])),
                     ])),
                 ),
@@ -1022,7 +1001,6 @@ class CareersByCategoryScreen extends ConsumerWidget {
 
   Widget _buildList(BuildContext context, List<Career> careers, bool isPremium) {
     if (careers.isEmpty) return const EmptyState(emoji: '💼', title: 'No careers found', subtitle: 'Try browsing all careers');
-    // Sort alphabetically — Issue 2
     final sorted = [...careers]..sort((a, b) => a.displayName.compareTo(b.displayName));
     return ListView.separated(
       padding: const EdgeInsets.all(16),
