@@ -29,8 +29,15 @@ class AdminTestOnboardingScreen extends StatelessWidget {
                         fontWeight: FontWeight.bold),
                   ),
                 ),
+                // FIXED #13: use Navigator.pop so back returns to Test Lab
                 GestureDetector(
-                  onTap: () => context.go('/admin'),
+                  onTap: () {
+                    if (Navigator.canPop(context)) {
+                      Navigator.pop(context);
+                    } else {
+                      context.go('/admin');
+                    }
+                  },
                   child: const Icon(Icons.close, color: Colors.white, size: 18),
                 ),
               ]),
@@ -57,6 +64,9 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
   bool _loading = true;
   late final PageController _pageController;
   late final AnimationController _progressController;
+
+  // FIXED #12: cap at 20 interests max (matches real onboarding)
+  static const int _maxInterests = 20;
 
   static const List<Map<String, dynamic>> _scenarios = [
     {
@@ -110,7 +120,9 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
           .from('interests')
           .select('id, name, category')
           .order('category')
-          .order('name');
+          .order('name')
+          // FIXED #12: limit to 20 to match real onboarding experience
+          .limit(_maxInterests);
       final list = List<Map<String, dynamic>>.from(data as List);
       for (final i in list) {
         _scores[i['id'] as String] = 3.0;
@@ -143,8 +155,16 @@ class _TestOnboardingWrapperState extends State<_TestOnboardingWrapper>
             'In real mode this saves to DB and redirects to home.\n\nNo data was saved — admin test mode.'),
         actions: [
           TextButton(
-            onPressed: () { Navigator.pop(context); context.go('/admin'); },
-            child: const Text('Back to Admin')),
+            // FIXED #13: pop back to Test Lab instead of going to admin overview
+            onPressed: () {
+              Navigator.pop(context);
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                context.go('/admin');
+              }
+            },
+            child: const Text('Back to Test Lab')),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
             onPressed: () {
@@ -388,7 +408,7 @@ class _OptionBox extends StatelessWidget {
   }
 }
 
-// ── Test Home Screen — shows real HomeScreen with admin banner ────────────────
+// ── Test Home Screen ──────────────────────────────────────────────────────────
 
 class AdminTestHomeScreen extends StatelessWidget {
   const AdminTestHomeScreen({super.key});
@@ -397,10 +417,7 @@ class AdminTestHomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Real home screen
         const HomeScreen(),
-
-        // Admin banner
         Positioned(
           top: 0, left: 0, right: 0,
           child: SafeArea(
@@ -415,8 +432,15 @@ class AdminTestHomeScreen extends StatelessWidget {
                   child: Text('ADMIN VIEW — Student home preview',
                     style: TextStyle(color: Colors.white, fontSize: 12,
                         fontWeight: FontWeight.bold))),
+                // FIXED #5 #13: pop back to Test Lab not admin overview
                 GestureDetector(
-                  onTap: () => context.go('/admin'),
+                  onTap: () {
+                    if (Navigator.canPop(context)) {
+                      Navigator.pop(context);
+                    } else {
+                      context.go('/admin');
+                    }
+                  },
                   child: const Icon(Icons.close, color: Colors.white, size: 18)),
               ]),
             ),
