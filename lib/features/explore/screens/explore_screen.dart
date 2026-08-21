@@ -12,7 +12,6 @@ final _selectedCategoryProvider = StateProvider<String?>((ref) => null);
 final _selectedCareerCatProvider = StateProvider<String?>((ref) => null);
 final _courseTypeProvider = StateProvider<String>((ref) => 'All');
 final _qualTypeProvider = StateProvider<String>((ref) => 'All');
-// FIXED #9: location filter provider
 final _locationProvider = StateProvider<String?>((ref) => null);
 
 final _qualsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
@@ -22,6 +21,34 @@ final _qualsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
       .order('type')
       .order('title');
   return List<Map<String, dynamic>>.from(res as List);
+});
+
+// Uses RPC that includes location column — bypasses db_service.getAllCourses()
+// which may not select location
+final _coursesWithLocationProvider = FutureProvider<List<Course>>((ref) async {
+  try {
+    final res = await Supabase.instance.client
+        .rpc('get_all_courses_with_location');
+    final list = (res as List).map((row) {
+      final m = (row as Map).cast<String, dynamic>();
+      return Course(
+        id: m['id'].toString(),
+        title: m['title'] as String? ?? '',
+        duration: m['duration'] as String?,
+        feesHome: m['fees_home'] as String?,
+        location: m['location'] as String?,
+        url: null,
+        ucasCode: m['ucas_code'] as String?,
+        startDate: m['start_date'] as String?,
+        category: m['category'] as String?,
+        courseType: m['course_type'] as String?,
+        institution: null,
+      );
+    }).toList();
+    return list;
+  } catch (_) {
+    return [];
+  }
 });
 
 class ExploreScreen extends ConsumerStatefulWidget {
@@ -57,7 +84,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
   @override
   Widget build(BuildContext context) {
     final careersAsync = ref.watch(filteredCareersProvider);
-    final coursesAsync = ref.watch(coursesProvider);
+    final coursesAsync = ref.watch(_coursesWithLocationProvider);
     final qualsAsync = ref.watch(_qualsProvider);
     final query = ref.watch(searchQueryProvider);
     final selectedCourseCat = ref.watch(_selectedCategoryProvider);
