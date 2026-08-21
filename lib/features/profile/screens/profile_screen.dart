@@ -330,9 +330,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: () => context.push('/join-school'),
                 ),
                 _SettingsTile(
-                  icon: Icons.family_restroom,
-                  label: 'Parent dashboard',
-                  onTap: () => context.push('/parent'),
+                  icon: Icons.admin_panel_settings_outlined,
+                  label: 'School advisor portal',
+                  onTap: () => context.push('/school-advisor'),
                 ),
                 if (isAdmin)
                   _SettingsTile(
@@ -636,7 +636,16 @@ class _EditInterestsSheetState extends State<_EditInterestsSheet>
             params: {'p_user_uid': authUser.id});
       }
       widget.onSaved();
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Interests updated! Matches refreshed.'),
+            backgroundColor: Color(0xFF16A34A),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     } catch (e) {
       setState(() => _saving = false);
       if (mounted) {
