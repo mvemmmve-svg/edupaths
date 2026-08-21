@@ -14,12 +14,7 @@ import '../../roadmap/roadmap_engine.dart';
 
 final _sb = Supabase.instance.client;
 
-// ── Children provider ─────────────────────────
 final childrenProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  // Watch the UID value (not the raw auth stream) so token-refresh events
-  // on web don't restart this load in a loop → infinite spinner.
-  // Fetch children + details + matches via a secure function (parents
-  // can't read their child's users row directly due to RLS).
   final uid = ref.watch(currentUidProvider);
   if (uid == null) return [];
   final raw = await _sb.rpc('parent_children_full')
@@ -43,7 +38,6 @@ final childrenProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async 
   }).toList();
 });
 
-// ── Child detail provider ─────────────────────
 final _childMatchesProvider = FutureProvider.family<List<Map<String, dynamic>>, String>(
   (ref, userId) async {
     final res = await _sb.rpc('parent_child_matches',
@@ -53,8 +47,6 @@ final _childMatchesProvider = FutureProvider.family<List<Map<String, dynamic>>, 
 
 final _childInterestsProvider = FutureProvider.family<List<String>, String>(
   (ref, userId) async {
-    // Parents can't read their child's user_interest rows directly (RLS),
-    // so use a secure function that checks the parent link server-side.
     final res = await _sb.rpc('parent_child_interests',
         params: {'p_child_id': userId});
     return ((res as List?) ?? []).map((e) => e.toString()).toList();
@@ -79,6 +71,29 @@ class _ParentDashState extends ConsumerState<ParentDashboardScreen>
     _tabs = TabController(length: 3, vsync: this);
   }
 
+  Future<void> _signOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sign out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary),
+            child: const Text('Sign out',
+              style: TextStyle(color: Colors.white))),
+        ]));
+    if (confirmed == true && mounted) {
+      await _sb.auth.signOut();
+      if (mounted) context.go('/login');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLoggedIn = _sb.auth.currentUser != null;
@@ -87,10 +102,17 @@ class _ParentDashState extends ConsumerState<ParentDashboardScreen>
       backgroundColor: AppColors.bgPage,
       appBar: AppBar(
         title: const Text('Parent Dashboard 👨‍👩‍👧'),
-        leading: GestureDetector(onTap: () => context.go('/home'), child: const BackBtn()),
+        leading: GestureDetector(
+          onTap: () => context.go('/home'), child: const BackBtn()),
         actions: [
-          IconButton(icon: const Icon(Icons.home_rounded),
+          IconButton(
+            icon: const Icon(Icons.home_rounded),
             onPressed: () => context.go('/home')),
+          // FIXED #7: Sign out button added
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.red),
+            tooltip: 'Sign out',
+            onPressed: _signOut),
         ],
         bottom: isLoggedIn ? TabBar(
           controller: _tabs,
@@ -150,7 +172,6 @@ class _ChildrenTab extends ConsumerWidget {
           PrimaryBtn(label: '+ Add Child',
             onPressed: () => _showAddChild(context, ref)),
           const SizedBox(height: 32),
-          // How it works
           const Text('How it works', style: TextStyle(fontFamily: 'Nunito',
             fontSize: 15, fontWeight: FontWeight.w800)),
           const SizedBox(height: 12),
@@ -297,8 +318,6 @@ class _ChildInsightCard extends ConsumerWidget {
             fontSize: 15, fontWeight: FontWeight.w900)),
         ]),
         const SizedBox(height: 12),
-
-        // Interests
         interestsAsync.when(
           loading: () => const SizedBox(),
           error: (_, __) => const SizedBox(),
@@ -313,8 +332,6 @@ class _ChildInsightCard extends ConsumerWidget {
                     bg: AppColors.primaryPale, fg: AppColors.primaryDark)).toList()),
                 const SizedBox(height: 12),
               ])),
-
-        // Top matches
         matchesAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, __) => const SizedBox(),
@@ -384,30 +401,18 @@ class _ParentsHubTabState extends State<_ParentsHubTab>
           Tab(text: '💚 Wellbeing'),
         ])),
     Expanded(child: TabBarView(controller: _sub, children: [
-      // ── Sub-tab 1: Options (qualifications + key dates) ──
       ListView(padding: const EdgeInsets.all(20), children: [
       const SectionHeader(title: 'Understanding Your Child\'s Options'),
       const SizedBox(height: 12),
       ...[
-        ('🎓', 'A-Levels', 'Traditional 2-year qualifications studied at sixth form or college. '
-          'Required for most university degrees. Students choose 3-4 subjects. '
-          'Graded A*-E. Recognized by all universities.'),
-        ('📋', 'BTECs', 'Vocational qualifications with coursework-based assessment. '
-          'Equivalent to A-Levels. Merit and Distinction grades. '
-          'Excellent for practical career paths and many universities accept them.'),
-        ('🔨', 'T-Levels', 'New technical qualifications launched from 2020. '
-          'Equivalent to 3 A-Levels. Industry placement included. '
-          'Ideal for technical careers like engineering, health, digital.'),
-        ('💼', 'Degree Apprenticeships', 'Work and study simultaneously. '
-          'Earn a full degree while getting paid. No student debt. '
-          'Available at top companies including NHS, PwC, BAE Systems.'),
-        ('📝', 'UCAS', 'The UK university application system. '
-          'Students apply to up to 5 universities. Main deadline January 29. '
-          'Oxford/Cambridge and medicine courses have an October deadline.'),
+        ('🎓', 'A-Levels', 'Traditional 2-year qualifications studied at sixth form or college. Required for most university degrees. Students choose 3-4 subjects. Graded A*-E. Recognized by all universities.'),
+        ('📋', 'BTECs', 'Vocational qualifications with coursework-based assessment. Equivalent to A-Levels. Merit and Distinction grades. Excellent for practical career paths and many universities accept them.'),
+        ('🔨', 'T-Levels', 'New technical qualifications launched from 2020. Equivalent to 3 A-Levels. Industry placement included. Ideal for technical careers like engineering, health, digital.'),
+        ('💼', 'Degree Apprenticeships', 'Work and study simultaneously. Earn a full degree while getting paid. No student debt. Available at top companies including NHS, PwC, BAE Systems.'),
+        ('📝', 'UCAS', 'The UK university application system. Students apply to up to 5 universities. Main deadline January 29. Oxford/Cambridge and medicine courses have an October deadline.'),
       ].map((item) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: _HubCard(emoji: item.$1, title: item.$2, body: item.$3))),
-
       const SizedBox(height: 20),
       const SectionHeader(title: 'Key Dates 2025/26'),
       const SizedBox(height: 12),
@@ -429,7 +434,6 @@ class _ParentsHubTabState extends State<_ParentsHubTab>
           Expanded(child: Text(d.$2, style: const TextStyle(fontFamily: 'Nunito',
             fontSize: 13, fontWeight: FontWeight.w600))),
         ])))),
-
       const SizedBox(height: 20),
       const SectionHeader(title: 'Useful Resources'),
       const SizedBox(height: 12),
@@ -454,14 +458,11 @@ class _ParentsHubTabState extends State<_ParentsHubTab>
         ])))),
       const SizedBox(height: 80),
       ]),
-
-      // ── Sub-tab 2: Revision (exam boards + books) ──
       ListView(padding: const EdgeInsets.all(20), children: [
       const SectionHeader(title: 'Support by Exam Board'),
       const SizedBox(height: 4),
       const Padding(padding: EdgeInsets.only(bottom: 12),
-        child: Text('Check which board each subject uses (ask the school), then '
-          'use their free past papers and specifications.',
+        child: Text('Check which board each subject uses (ask the school), then use their free past papers and specifications.',
           style: TextStyle(fontFamily: 'Nunito', fontSize: 12.5,
             color: AppColors.textMid, height: 1.4))),
       ...[
@@ -471,9 +472,7 @@ class _ParentsHubTabState extends State<_ParentsHubTab>
         ('WJEC / Eduqas', 'Used across Wales and parts of England, especially English and Humanities.', 'eduqas.co.uk'),
       ].map((b) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
-        child: _LinkCard(emoji: '📄', title: b.$1, body: b.$2, url: b.$3)))
-        .toList(),
-
+        child: _LinkCard(emoji: '📄', title: b.$1, body: b.$2, url: b.$3))).toList(),
       const SizedBox(height: 20),
       const SectionHeader(title: 'Books & Revision Resources'),
       const SizedBox(height: 12),
@@ -485,39 +484,24 @@ class _ParentsHubTabState extends State<_ParentsHubTab>
         ('🛒', 'Amazon: revision guides', 'Search CGP, Oxford or Collins guides for your child\'s exact subjects.', 'amazon.co.uk'),
       ].map((r) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
-        child: _LinkCard(emoji: r.$1, title: r.$2, body: r.$3, url: r.$4)))
-        .toList(),
+        child: _LinkCard(emoji: r.$1, title: r.$2, body: r.$3, url: r.$4))).toList(),
       const SizedBox(height: 80),
       ]),
-
-      // ── Sub-tab 3: Wellbeing (revision time + screen time) ──
       ListView(padding: const EdgeInsets.all(20), children: [
       const SectionHeader(title: 'Healthy Revision & Screen Time'),
       const SizedBox(height: 12),
       _HubCard(emoji: '⏰', title: 'How much revision is healthy?',
-        body: 'A good guide: Years 10–11 around 1–2 hours on a school night '
-          'and 3–4 hours a day in the holidays; Years 12–13 around 2–3 hours '
-          'on a school night. Short focused blocks (25–40 mins) with breaks '
-          'beat long marathons. Quality over quantity — and never at the '
-          'expense of sleep.'),
+        body: 'A good guide: Years 10–11 around 1–2 hours on a school night and 3–4 hours a day in the holidays; Years 12–13 around 2–3 hours on a school night. Short focused blocks (25–40 mins) with breaks beat long marathons. Quality over quantity — and never at the expense of sleep.'),
       _HubCard(emoji: '📱', title: 'Screen time & phones',
-        body: 'Phones are the biggest revision distraction. A simple win: '
-          'agree the phone stays in another room during revision blocks. '
-          'Aim to switch screens off ~1 hour before bed — blue light and '
-          'social media harm the sleep that memory depends on. Downtime and '
-          'gaming are fine once the agreed revision is done.'),
+        body: 'Phones are the biggest revision distraction. A simple win: agree the phone stays in another room during revision blocks. Aim to switch screens off ~1 hour before bed — blue light and social media harm the sleep that memory depends on. Downtime and gaming are fine once the agreed revision is done.'),
       _HubCard(emoji: '😴', title: 'Sleep, food & breaks',
-        body: 'Teenagers need 8–10 hours\' sleep — it\'s when the brain locks '
-          'in what they revised. Regular meals, water and fresh-air breaks '
-          'do more for grades than one extra late-night hour of cramming.'),
-
+        body: 'Teenagers need 8–10 hours\' sleep — it\'s when the brain locks in what they revised. Regular meals, water and fresh-air breaks do more for grades than one extra late-night hour of cramming.'),
       const SizedBox(height: 80),
       ]),
     ])),
   ]);
 }
 
-// Tappable resource card that opens an external link.
 class _LinkCard extends StatelessWidget {
   final String emoji, title, body, url;
   const _LinkCard({required this.emoji, required this.title,
@@ -527,12 +511,10 @@ class _LinkCard extends StatelessWidget {
     onTap: () => launchUrl(
       Uri.parse(url.startsWith('http') ? url : 'https://$url'),
       mode: LaunchMode.externalApplication),
-    child: EduCard(child: Row(crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    child: EduCard(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(emoji, style: const TextStyle(fontSize: 22)),
       const SizedBox(width: 12),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(title, style: const TextStyle(fontFamily: 'Nunito',
           fontSize: 13, fontWeight: FontWeight.w800)),
         const SizedBox(height: 2),
@@ -584,8 +566,10 @@ class _HubCardState extends State<_HubCard> {
 class _ChildProgressScreen extends ConsumerWidget {
   final String childName, childUserId, schoolYear;
   const _ChildProgressScreen({
-    required this.childName, required this.childUserId,
-    required this.schoolYear});
+    required this.childName,
+    required this.childUserId,
+    required this.schoolYear,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -600,30 +584,31 @@ class _ChildProgressScreen extends ConsumerWidget {
         leading: GestureDetector(
           onTap: () => Navigator.pop(context), child: const BackBtn())),
       body: Column(children: [
-        // Profile card (fixed header)
         Padding(padding: const EdgeInsets.all(20), child:
-          Container(padding: const EdgeInsets.all(20), decoration: gradientBox(radius: 16),
-          child: Row(children: [
-          CircleAvatar(radius: 32, backgroundColor: Colors.white.withOpacity(0.2),
-            child: Text(childName.trim().isEmpty ? '?' : childName.trim()[0].toUpperCase(),
-              style: const TextStyle(
-              fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white))),
-          const SizedBox(width: 16),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(childName, style: const TextStyle(fontFamily: 'Nunito',
-              fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
-            Text(schoolYear, style: const TextStyle(fontFamily: 'Nunito',
-              fontSize: 14, color: Colors.white70)),
-            const SizedBox(height: 8),
-            Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(999)),
-              child: const Text('✅ Profile Complete', style: TextStyle(
-                fontFamily: 'Nunito', fontSize: 12, color: Colors.white,
-                fontWeight: FontWeight.w700))),
-          ])),
-        ]))),
-        // Sub-tabs
+          Container(padding: const EdgeInsets.all(20),
+            decoration: gradientBox(radius: 16),
+            child: Row(children: [
+              CircleAvatar(radius: 32,
+                backgroundColor: Colors.white.withOpacity(0.2),
+                child: Text(
+                  childName.trim().isEmpty ? '?' : childName.trim()[0].toUpperCase(),
+                  style: const TextStyle(fontSize: 28,
+                    fontWeight: FontWeight.w900, color: Colors.white))),
+              const SizedBox(width: 16),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(childName, style: const TextStyle(fontFamily: 'Nunito',
+                  fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
+                Text(schoolYear, style: const TextStyle(fontFamily: 'Nunito',
+                  fontSize: 14, color: Colors.white70)),
+                const SizedBox(height: 8),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(999)),
+                  child: const Text('✅ Profile Complete', style: TextStyle(
+                    fontFamily: 'Nunito', fontSize: 12, color: Colors.white,
+                    fontWeight: FontWeight.w700))),
+              ])),
+            ]))),
         const TabBar(
           labelColor: AppColors.primary,
           unselectedLabelColor: AppColors.textLight,
@@ -636,53 +621,54 @@ class _ChildProgressScreen extends ConsumerWidget {
             Tab(text: '🎯 Interests'),
           ]),
         Expanded(child: TabBarView(children: [
-          // ── TAB: Matches ──
+
+          // ── TAB: Matches — FIXED #6: shows ALL matches ──
           ListView(padding: const EdgeInsets.all(20), children: [
             matchesAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => const Text('Could not load matches'),
               data: (matches) => matches.isEmpty
-              ? const EmptyState(emoji: '🔍', title: 'No matches yet',
-                  subtitle: 'Child needs to complete onboarding')
-              : Column(children: matches.map((m) {
-                  final career = (m['career'] ?? m['careers']) as Map? ?? {};
-                  final score = (m['match_score'] as num?)?.toInt() ?? 0;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: EduCard(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        MatchRing(pct: score, size: 44),
-                        const SizedBox(width: 12),
-                        Expanded(child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text((career['name'] ?? 'Career').toString(), style: const TextStyle(
-                            fontFamily: 'Nunito', fontSize: 15,
-                            fontWeight: FontWeight.w800)),
-                          if (career['avg_salary'] != null)
-                            Text(career['avg_salary'].toString(),
+                ? const EmptyState(emoji: '🔍', title: 'No matches yet',
+                    subtitle: 'Child needs to complete onboarding')
+                : Column(children: matches.map((m) {
+                    final career = (m['career'] ?? m['careers']) as Map? ?? {};
+                    final score = (m['match_score'] as num?)?.toInt() ?? 0;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: EduCard(child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          MatchRing(pct: score, size: 44),
+                          const SizedBox(width: 12),
+                          Expanded(child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text((career['name'] ?? 'Career').toString(),
                               style: const TextStyle(fontFamily: 'Nunito',
-                                fontSize: 12, color: AppColors.textMid)),
-                        ])),
-                        if (career['category'] != null) TagBadge(
-                          label: career['category'].toString(),
-                          bg: AppColors.primaryPale, fg: AppColors.primaryDark),
-                      ]),
-                      if (m['match_reason'] != null &&
-                          (m['match_reason'] as String).isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(m['match_reason'] as String,
-                          style: const TextStyle(fontFamily: 'Nunito',
-                            fontSize: 12, color: AppColors.textMid)),
-                      ],
-                    ])));
-                }).toList())),
+                                fontSize: 15, fontWeight: FontWeight.w800)),
+                            if (career['avg_salary'] != null)
+                              Text(career['avg_salary'].toString(),
+                                style: const TextStyle(fontFamily: 'Nunito',
+                                  fontSize: 12, color: AppColors.textMid)),
+                          ])),
+                          if (career['category'] != null) TagBadge(
+                            label: career['category'].toString(),
+                            bg: AppColors.primaryPale, fg: AppColors.primaryDark),
+                        ]),
+                        if (m['match_reason'] != null &&
+                            (m['match_reason'] as String).isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(m['match_reason'] as String,
+                            style: const TextStyle(fontFamily: 'Nunito',
+                              fontSize: 12, color: AppColors.textMid)),
+                        ],
+                      ])));
+                  }).toList())),
           ]),
 
-          // ── TAB: Roadmap ──
+          // ── TAB: Roadmap — shows top match + list of others ──
           ListView(padding: const EdgeInsets.all(20), children: [
-            Text('How you can support ${childName.split(' ').first} towards their '
-              'top career, step by step.',
+            Text('How you can support ${childName.split(' ').first} towards '
+              'their top career, step by step.',
               style: const TextStyle(fontFamily: 'Nunito', fontSize: 12.5,
                 color: AppColors.textMid)),
             const SizedBox(height: 12),
@@ -695,19 +681,58 @@ class _ChildProgressScreen extends ConsumerWidget {
                     style: TextStyle(fontFamily: 'Nunito', fontSize: 13,
                       color: AppColors.textMid));
                 }
-                final top = (matches.first['career'] ?? matches.first['careers']) as Map? ?? {};
+                final top = (matches.first['career'] ?? matches.first['careers'])
+                    as Map? ?? {};
                 final topName = (top['name'] ?? '').toString();
                 if (topName.isEmpty) return const SizedBox();
                 final roadmap = buildCareerRoadmap(
                   careerName: topName,
                   category: top['category'] as String?,
                   schoolYear: schoolYear);
-                return _ChildRoadmapView(roadmap: roadmap, careerName: topName);
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  _ChildRoadmapView(roadmap: roadmap, careerName: topName),
+                  // FIXED #6: show other matches below top roadmap
+                  if (matches.length > 1) ...[
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryPale,
+                        borderRadius: BorderRadius.circular(12)),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('Other career matches',
+                          style: TextStyle(fontFamily: 'Nunito',
+                            fontSize: 13, fontWeight: FontWeight.w800,
+                            color: AppColors.primaryDark)),
+                        const SizedBox(height: 4),
+                        const Text('Full roadmaps for all matches — coming as a Premium feature.',
+                          style: TextStyle(fontFamily: 'Nunito',
+                            fontSize: 12, color: AppColors.textMid)),
+                        const SizedBox(height: 10),
+                        ...matches.skip(1).take(9).map((m) {
+                          final c = (m['career'] ?? m['careers']) as Map? ?? {};
+                          final score = (m['match_score'] as num?)?.toInt() ?? 0;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(children: [
+                              MatchRing(pct: score, size: 30),
+                              const SizedBox(width: 10),
+                              Expanded(child: Text((c['name'] ?? '').toString(),
+                                style: const TextStyle(fontFamily: 'Nunito',
+                                  fontSize: 13, fontWeight: FontWeight.w700))),
+                              if (c['category'] != null)
+                                TagBadge(label: c['category'].toString(),
+                                  bg: AppColors.bgCard, fg: AppColors.textMid),
+                            ]));
+                        }),
+                      ])),
+                  ],
+                ]);
               }),
             const SizedBox(height: 40),
           ]),
 
-          // ── TAB: Interests (with edit) ──
+          // ── TAB: Interests ──
           ListView(padding: const EdgeInsets.all(20), children: [
             Row(children: [
               const Expanded(child: Text('Interests & Strengths',
@@ -738,7 +763,8 @@ class _ChildProgressScreen extends ConsumerWidget {
                     ])
                   : Wrap(spacing: 8, runSpacing: 8,
                       children: interests.map((i) => TagBadge(label: i,
-                        bg: AppColors.primaryPale, fg: AppColors.primaryDark)).toList())),
+                        bg: AppColors.primaryPale,
+                        fg: AppColors.primaryDark)).toList())),
             const SizedBox(height: 40),
           ]),
         ])),
@@ -763,7 +789,6 @@ class _ChildProgressScreen extends ConsumerWidget {
   }
 }
 
-// ── Compact roadmap view for the parent's child screen ──
 class _ChildRoadmapView extends StatelessWidget {
   final CareerRoadmap roadmap;
   final String careerName;
@@ -771,7 +796,6 @@ class _ChildRoadmapView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // Career banner
       Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -781,8 +805,7 @@ class _ChildRoadmapView extends StatelessWidget {
         child: Row(children: [
           Text(roadmap.emoji, style: const TextStyle(fontSize: 26)),
           const SizedBox(width: 12),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('PATH TO', style: TextStyle(fontFamily: 'Nunito',
               fontSize: 9, fontWeight: FontWeight.w800,
               color: Colors.white70, letterSpacing: 1.2)),
@@ -791,7 +814,6 @@ class _ChildRoadmapView extends StatelessWidget {
           ])),
         ])),
       const SizedBox(height: 14),
-      // Stages
       ...roadmap.stages.map((s) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -808,8 +830,7 @@ class _ChildRoadmapView extends StatelessWidget {
                 : Text(s.emoji, style: const TextStyle(fontSize: 13)))),
           ]),
           const SizedBox(width: 12),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Text(s.title, style: const TextStyle(fontFamily: 'Nunito',
                 fontSize: 13.5, fontWeight: FontWeight.w800)),
@@ -830,7 +851,6 @@ class _ChildRoadmapView extends StatelessWidget {
                 fontSize: 12, color: AppColors.textMid, height: 1.4)))),
           ])),
         ]))),
-      // Route options at 18
       const SizedBox(height: 6),
       const Text('At 18 — the routes to aim for:', style: TextStyle(
         fontFamily: 'Nunito', fontSize: 12.5, fontWeight: FontWeight.w800)),
@@ -869,7 +889,7 @@ class _AddChildState extends ConsumerState<_AddChildSheet> {
   String? _schoolYear;
   Set<String> _selectedInterestIds = {};
   Set<String> _selectedTraitIds = {};
-  int _step = 0; // 0=details, 1=interests, 2=traits
+  int _step = 0;
   bool _saving = false;
   String? _error;
 
@@ -879,10 +899,9 @@ class _AddChildState extends ConsumerState<_AddChildSheet> {
   @override
   void initState() {
     super.initState();
-    // Edit mode: prefill name and jump straight to interests selection.
     if (widget.editChildId != null) {
       _nameCtrl.text = widget.editChildName ?? '';
-      _schoolYear = 'Year 10'; // not editable here; kept from creation
+      _schoolYear = 'Year 10';
       _step = 1;
     }
   }
@@ -893,7 +912,9 @@ class _AddChildState extends ConsumerState<_AddChildSheet> {
       padding: EdgeInsets.only(
         left: 20, right: 20, top: 20,
         bottom: MediaQuery.of(context).viewInsets.bottom + 24),
-      child: _step == 0 ? _buildDetails() : _step == 1 ? _buildInterests() : _buildTraits());
+      child: _step == 0 ? _buildDetails()
+          : _step == 1 ? _buildInterests()
+          : _buildTraits());
   }
 
   Widget _buildDetails() => Column(mainAxisSize: MainAxisSize.min,
@@ -1034,7 +1055,8 @@ class _AddChildState extends ConsumerState<_AddChildSheet> {
                         : _selectedTraitIds.add(t.id)),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
                         color: sel ? AppColors.primaryPale : AppColors.bgCard,
                         borderRadius: BorderRadius.circular(12),
@@ -1053,7 +1075,8 @@ class _AddChildState extends ConsumerState<_AddChildSheet> {
         })),
       const SizedBox(height: 8),
       Text('${_selectedTraitIds.length} selected',
-        style: const TextStyle(fontFamily: 'Nunito', fontSize: 12, color: AppColors.textMid)),
+        style: const TextStyle(fontFamily: 'Nunito', fontSize: 12,
+          color: AppColors.textMid)),
       const SizedBox(height: 8),
       PrimaryBtn(
         label: _saving ? 'Creating profile...' : 'Create Profile & Get Matches 🎉',
@@ -1069,17 +1092,13 @@ class _AddChildState extends ConsumerState<_AddChildSheet> {
         setState(() { _saving = false; _error = 'Please log in again.'; });
         return;
       }
-
       if (widget.editChildId != null) {
-        // Edit mode: replace this child's interests/strengths & regenerate matches
         await _sb.rpc('parent_update_child', params: {
           'p_child_id': widget.editChildId,
           'p_interest_ids': _selectedInterestIds.toList(),
           'p_trait_ids': _selectedTraitIds.toList(),
         });
       } else {
-        // One secure call creates the virtual child, saves interests/traits,
-        // links to this parent, and generates matches — all server-side.
         await _sb.rpc('parent_create_child', params: {
           'p_name': _nameCtrl.text.trim(),
           'p_school_year': _schoolYear,
@@ -1087,7 +1106,6 @@ class _AddChildState extends ConsumerState<_AddChildSheet> {
           'p_trait_ids': _selectedTraitIds.toList(),
         });
       }
-
       if (mounted) {
         Navigator.pop(context);
         widget.onAdded();
@@ -1101,7 +1119,6 @@ class _AddChildState extends ConsumerState<_AddChildSheet> {
   }
 }
 
-// ── Screens exported for router ───────────────
 class ParentInsightsScreen extends ConsumerWidget {
   const ParentInsightsScreen({super.key});
   @override
@@ -1109,7 +1126,6 @@ class ParentInsightsScreen extends ConsumerWidget {
       const ParentDashboardScreen();
 }
 
-// ── Guest prompt ──────────────────────────────
 class _GuestPrompt extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
