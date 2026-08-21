@@ -10,12 +10,7 @@ import '../../../shared/widgets/shared_widgets.dart';
 
 final _sb = Supabase.instance.client;
 
-// Providers
 final schoolProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
-  // Watch the UID VALUE, not the raw auth event stream — on web the
-  // stream fires on every session-restore/token-refresh event, which
-  // restarted this load in a loop and left the page on an infinite
-  // spinner (especially on desktop browsers with long-lived sessions).
   final uid = ref.watch(currentUidProvider);
   if (uid == null) return null;
   try {
@@ -29,7 +24,6 @@ final schoolProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
         .timeout(const Duration(seconds: 12));
     return res;
   } on Exception {
-    // Surface a real error state instead of hanging forever
     rethrow;
   }
 });
@@ -55,7 +49,7 @@ final studentsProvider = FutureProvider.family<List<Map<String, dynamic>>, Strin
   });
 
 // ══════════════════════════════════════════════
-// MAIN ENTRY: routes to setup or dashboard
+// MAIN ENTRY
 // ══════════════════════════════════════════════
 class SchoolAdvisorScreen extends ConsumerWidget {
   const SchoolAdvisorScreen({super.key});
@@ -90,7 +84,7 @@ class SchoolAdvisorScreen extends ConsumerWidget {
 }
 
 // ══════════════════════════════════════════════
-// SETUP SCREEN — pricing + registration
+// SETUP SCREEN
 // ══════════════════════════════════════════════
 class SchoolSetupScreen extends ConsumerStatefulWidget {
   const SchoolSetupScreen({super.key});
@@ -122,7 +116,7 @@ class _SchoolSetupState extends ConsumerState<SchoolSetupScreen> {
       Container(padding: const EdgeInsets.all(20),
         decoration: gradientBox(radius: 16),
         child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text("\U0001F3EB School Advisor Portal", style: TextStyle(
+          Text('🏫 School Advisor Portal', style: TextStyle(
             fontFamily: 'Nunito', fontSize: 22, fontWeight: FontWeight.w900,
             color: Colors.white)),
           SizedBox(height: 8),
@@ -292,7 +286,7 @@ class _SchoolSetupState extends ConsumerState<SchoolSetupScreen> {
 }
 
 // ══════════════════════════════════════════════
-// DASHBOARD — for registered advisors
+// DASHBOARD
 // ══════════════════════════════════════════════
 class SchoolDashboard extends ConsumerStatefulWidget {
   final Map<String, dynamic> school;
@@ -309,8 +303,6 @@ class _SchoolDashboardState extends ConsumerState<SchoolDashboard>
 
   @override
   Widget build(BuildContext context) {
-    // Guard: if the joined school record is missing (e.g. row-level
-    // security or a broken link), fall back to setup rather than crashing.
     final rawSchool = widget.school['schools'];
     if (rawSchool == null) return const SchoolSetupScreen();
     final schoolData = (rawSchool as Map).cast<String, dynamic>();
@@ -345,7 +337,6 @@ class _SchoolDashboardState extends ConsumerState<SchoolDashboard>
   }
 }
 
-// COHORTS TAB
 class _CohortsTab extends ConsumerWidget {
   final Map<String, dynamic> school;
   final AsyncValue<List<Map<String, dynamic>>> cohortsAsync;
@@ -356,7 +347,7 @@ class _CohortsTab extends ConsumerWidget {
     error: (e, _) => Center(child: Text('$e')),
     data: (cohorts) => Column(children: [
       Expanded(child: cohorts.isEmpty
-          ? const EmptyState(emoji: 'U+1F465', title: 'No cohorts yet',
+          ? const EmptyState(emoji: '👥', title: 'No cohorts yet',
               subtitle: 'Create your first cohort to add students')
           : ListView.separated(
               padding: const EdgeInsets.all(16),
@@ -400,7 +391,6 @@ class _CohortsTab extends ConsumerWidget {
       onCreated: () => ref.invalidate(cohortsProvider)));
 }
 
-// OVERVIEW TAB
 class _OverviewTab extends ConsumerWidget {
   final Map<String, dynamic> school;
   final AsyncValue<List<Map<String, dynamic>>> cohortsAsync;
@@ -473,7 +463,6 @@ class _OverviewTab extends ConsumerWidget {
   }
 }
 
-// SETTINGS TAB
 class _SettingsTab extends ConsumerStatefulWidget {
   final Map<String, dynamic> school;
   const _SettingsTab({required this.school});
@@ -628,7 +617,8 @@ class _CohortDetailState extends ConsumerState<CohortDetailScreen> {
         error: (e, _) => ErrorView(message: e.toString()),
         data: (students) {
           final active = students.where((s) =>
-              s['status'] == 'active' || s['users']?['onboarding_complete'] == true).length;
+              s['status'] == 'active' ||
+              s['users']?['onboarding_complete'] == true).length;
           final filtered = students.where((s) => _search.isEmpty ||
               (s['student_name'] as String).toLowerCase()
                   .contains(_search.toLowerCase())).toList();
@@ -648,7 +638,7 @@ class _CohortDetailState extends ConsumerState<CohortDetailScreen> {
                   prefixIcon: Icon(Icons.search_rounded, size: 20)))),
             const SizedBox(height: 8),
             Expanded(child: filtered.isEmpty
-                ? const EmptyState(emoji: 'U+1F464', title: 'No students yet',
+                ? const EmptyState(emoji: '👤', title: 'No students yet',
                     subtitle: 'Upload CSV or add manually')
                 : ListView.separated(
                     padding: const EdgeInsets.all(16),
@@ -657,8 +647,6 @@ class _CohortDetailState extends ConsumerState<CohortDetailScreen> {
                     itemBuilder: (_, i) {
                       final s = filtered[i];
                       final hasAccount = s['user_id'] != null;
-                      // "Done" if their profile is complete OR the roster row
-                      // is already marked active (set when they join/link).
                       final done = s['users']?['onboarding_complete'] == true
                           || s['status'] == 'active';
                       return EduCard(
@@ -668,10 +656,12 @@ class _CohortDetailState extends ConsumerState<CohortDetailScreen> {
                             child: StudentDetailScreen(student: s)))),
                         child: Row(children: [
                           CircleAvatar(radius: 18,
-                            backgroundColor: done ? AppColors.accentGreen.withOpacity(0.15)
+                            backgroundColor: done
+                                ? AppColors.accentGreen.withOpacity(0.15)
                                 : AppColors.bgGrey,
-                            child: Text((s['student_name'] as String? ?? '?').trim().isEmpty
-                                ? '?' : (s['student_name'] as String).trim()[0].toUpperCase(),
+                            child: Text(
+                              (s['student_name'] as String? ?? '?').trim().isEmpty
+                                  ? '?' : (s['student_name'] as String).trim()[0].toUpperCase(),
                               style: TextStyle(fontFamily: 'Nunito',
                                 fontWeight: FontWeight.w800,
                                 color: done ? AppColors.accentGreen : AppColors.textLight))),
@@ -712,7 +702,7 @@ class _CohortDetailState extends ConsumerState<CohortDetailScreen> {
 }
 
 // ══════════════════════════════════════════════
-// STUDENT DETAIL SCREEN
+// STUDENT DETAIL SCREEN — FIXED #7: careers are tappable → pathway
 // ══════════════════════════════════════════════
 class StudentDetailScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> student;
@@ -724,7 +714,7 @@ class StudentDetailScreen extends ConsumerStatefulWidget {
 class _StudentDetailState extends ConsumerState<StudentDetailScreen> {
   List<Map<String, dynamic>> _notes = [];
   List<Map<String, dynamic>> _matches = [];
-  Map<String, dynamic>? _profile; // full profile from advisor_student_profile
+  Map<String, dynamic>? _profile;
   final _noteCtrl = TextEditingController();
   bool _loading = true;
   bool _saving = false;
@@ -748,15 +738,16 @@ class _StudentDetailState extends ConsumerState<StudentDetailScreen> {
           _notes = (n as List).cast<Map<String, dynamic>>();
         }
       }
-      // One secure call returns details, interests, strengths and matches
-      // (bypasses the users-table RLS wall for authorised advisors).
       try {
         final p = await _sb.rpc('advisor_student_profile',
             params: {'p_roster_id': widget.student['id']});
         final map = (p as Map).cast<String, dynamic>();
         _profile = map;
+        // FIXED #7: now includes career_id from updated RPC
         _matches = ((map['matches'] as List?) ?? []).map((e) => {
-          'score': e['score'], 'career': e['career'],
+          'score': e['score'],
+          'career': e['career'],
+          'career_id': e['career_id'], // new field — enables navigation
         }).toList();
       } catch (_) {
         _profile = null;
@@ -827,8 +818,9 @@ class _StudentDetailState extends ConsumerState<StudentDetailScreen> {
         || widget.student['status'] == 'active';
     return Scaffold(
       backgroundColor: AppColors.bgPage,
-      appBar: AppBar(title: Text(name, style: const TextStyle(
-        fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+      appBar: AppBar(
+        title: Text(name, style: const TextStyle(
+          fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
         leading: GestureDetector(onTap: () => Navigator.pop(context), child: const BackBtn()),
         actions: [
           PopupMenuButton<String>(
@@ -844,8 +836,9 @@ class _StudentDetailState extends ConsumerState<StudentDetailScreen> {
       body: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [
         EduCard(color: AppColors.primaryPale, child: Row(children: [
           CircleAvatar(radius: 28, backgroundColor: AppColors.primary,
-            child: Text(name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase(), style: const TextStyle(
-              fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white))),
+            child: Text(name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase(),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900,
+                color: Colors.white))),
           const SizedBox(width: 16),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(name, style: const TextStyle(fontFamily: 'Nunito',
@@ -859,10 +852,8 @@ class _StudentDetailState extends ConsumerState<StudentDetailScreen> {
           ])),
         ])),
         const SizedBox(height: 20),
-        // Login / account details
         _AdvisorInfoBlock(profile: _profile, loading: _loading),
         const SizedBox(height: 16),
-        // Interests & strengths chips
         _ChipsSection(title: 'Interests 🎯',
           items: (_profile?['interests'] as List?)?.cast<String>() ?? const [],
           loading: _loading, empty: 'No interests recorded yet.'),
@@ -872,7 +863,15 @@ class _StudentDetailState extends ConsumerState<StudentDetailScreen> {
           loading: _loading, empty: 'No strengths recorded yet.'),
         const SizedBox(height: 20),
         const SectionHeader(title: 'Career Matches'),
-        const SizedBox(height: 10),
+        const SizedBox(height: 4),
+        // FIXED #7: instruction text added
+        if (!_loading && _matches.isNotEmpty)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text('Tap a career to see the full pathway →',
+              style: TextStyle(fontFamily: 'Nunito', fontSize: 12,
+                color: AppColors.textMid))),
+        const SizedBox(height: 6),
         if (_loading)
           const Center(child: CircularProgressIndicator())
         else if (_matches.isEmpty)
@@ -880,12 +879,19 @@ class _StudentDetailState extends ConsumerState<StudentDetailScreen> {
             style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: AppColors.textMid))
         else ..._matches.take(10).map((m) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: EduCard(child: Row(children: [
-            MatchRing(pct: (m['score'] as num).toInt(), size: 36),
-            const SizedBox(width: 12),
-            Expanded(child: Text(m['career'] as String, style: const TextStyle(
-              fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w700))),
-          ])))),
+          // FIXED #7: EduCard now has onTap → navigates to career pathway
+          child: EduCard(
+            onTap: (m['career_id'] as String?) != null
+                ? () => context.push('/pathway/${m['career_id']}')
+                : null,
+            child: Row(children: [
+              MatchRing(pct: (m['score'] as num).toInt(), size: 36),
+              const SizedBox(width: 12),
+              Expanded(child: Text(m['career'] as String, style: const TextStyle(
+                fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w700))),
+              const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textLight, size: 18),
+            ])))),
         const SizedBox(height: 20),
         const SectionHeader(title: 'Advisor Notes'),
         const SizedBox(height: 10),
@@ -925,7 +931,7 @@ class _StudentDetailState extends ConsumerState<StudentDetailScreen> {
 }
 
 // ══════════════════════════════════════════════
-// UPLOAD STUDENTS SHEET
+// UPLOAD / ADD STUDENT SHEETS
 // ══════════════════════════════════════════════
 class UploadStudentsSheet extends ConsumerStatefulWidget {
   final String cohortId, schoolId;
@@ -950,14 +956,10 @@ class _UploadState extends ConsumerState<UploadStudentsSheet> {
       final parts = _splitCsvLine(line);
       if (parts.isEmpty || parts[0].isEmpty) continue;
       if (parts[0].toLowerCase() == 'name') continue;
-      // Find the email field wherever it lands, so a "Surname, First"
-      // export with a stray comma doesn't shift the columns.
-      final emailIdx =
-          parts.indexWhere((p) => p.contains('@') && p.contains('.'));
+      final emailIdx = parts.indexWhere((p) => p.contains('@') && p.contains('.'));
       String name, email = '', year = '';
       if (emailIdx > 0) {
-        name = parts.sublist(0, emailIdx).join(' ')
-            .replaceAll(RegExp(r'\s+'), ' ').trim();
+        name = parts.sublist(0, emailIdx).join(' ').replaceAll(RegExp(r'\s+'), ' ').trim();
         email = parts[emailIdx];
         year = parts.length > emailIdx + 1 ? parts[emailIdx + 1] : '';
       } else {
@@ -970,27 +972,16 @@ class _UploadState extends ConsumerState<UploadStudentsSheet> {
     setState(() { _preview = results; _error = results.isEmpty ? 'No valid data found' : null; });
   }
 
-  /// Splits a CSV line but respects "double quotes", so "Smith, John"
-  /// stays one field instead of splitting on the comma inside it.
   List<String> _splitCsvLine(String line) {
-    // Tab-separated (common when pasting straight from Excel/Sheets) —
-    // split on tabs and skip the quote handling entirely.
-    if (line.contains('\t')) {
-      return line.split('\t').map((p) => p.trim()).toList();
-    }
+    if (line.contains('\t')) return line.split('\t').map((p) => p.trim()).toList();
     final out = <String>[];
     final buf = StringBuffer();
     var inQuotes = false;
     for (var i = 0; i < line.length; i++) {
       final ch = line[i];
-      if (ch == '"') {
-        inQuotes = !inQuotes;
-      } else if (ch == ',' && !inQuotes) {
-        out.add(buf.toString().trim());
-        buf.clear();
-      } else {
-        buf.write(ch);
-      }
+      if (ch == '"') { inQuotes = !inQuotes; }
+      else if (ch == ',' && !inQuotes) { out.add(buf.toString().trim()); buf.clear(); }
+      else { buf.write(ch); }
     }
     out.add(buf.toString().trim());
     return out;
@@ -1000,8 +991,6 @@ class _UploadState extends ConsumerState<UploadStudentsSheet> {
     if (_preview.isEmpty) return;
     setState(() => _saving = true);
     try {
-      // Skip anyone already on this cohort's list (matched by email) so
-      // re-pasting the same CSV doesn't create duplicates.
       final existing = await _sb.from('school_students')
           .select('student_email').eq('cohort_id', widget.cohortId);
       final seen = (existing as List)
@@ -1046,7 +1035,7 @@ class _UploadState extends ConsumerState<UploadStudentsSheet> {
       const Text('Upload Students via CSV', style: TextStyle(
         fontFamily: 'Nunito', fontSize: 18, fontWeight: FontWeight.w900)),
       const SizedBox(height: 8),
-      const Text('Format: Name, Email, Year Group\nExample: John Smith, john@school.ac.uk, Year 11',
+      const Text('Format: Name, Email, Year Group',
         style: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: AppColors.textMid)),
       const SizedBox(height: 12),
       TextFormField(controller: _ctrl, maxLines: 8,
@@ -1073,9 +1062,6 @@ class _UploadState extends ConsumerState<UploadStudentsSheet> {
     ]));
 }
 
-// ══════════════════════════════════════════════
-// ADD STUDENT SHEET
-// ══════════════════════════════════════════════
 class AddStudentSheet extends ConsumerStatefulWidget {
   final String cohortId, schoolId;
   final VoidCallback onAdded;
@@ -1131,9 +1117,6 @@ class _AddState extends ConsumerState<AddStudentSheet> {
     ]));
 }
 
-// ══════════════════════════════════════════════
-// CREATE COHORT SHEET
-// ══════════════════════════════════════════════
 class _CreateCohortSheet extends ConsumerStatefulWidget {
   final String schoolId;
   final VoidCallback onCreated;
@@ -1227,7 +1210,6 @@ class _Row extends StatelessWidget {
     ]));
 }
 
-// ── Advisor: student account/login details block ──
 class _AdvisorInfoBlock extends StatelessWidget {
   final Map<String, dynamic>? profile;
   final bool loading;
@@ -1264,7 +1246,6 @@ class _AdvisorInfoBlock extends StatelessWidget {
     ]));
 }
 
-// ── Advisor: interests / strengths chip section ──
 class _ChipsSection extends StatelessWidget {
   final String title, empty;
   final List<String> items;
